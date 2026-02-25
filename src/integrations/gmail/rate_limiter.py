@@ -3,6 +3,7 @@ Gmail API rate limiter using token bucket algorithm.
 Supports distributed rate limiting via Redis for horizontal scaling.
 """
 
+import ssl
 import time
 from datetime import datetime
 from typing import Any, Callable
@@ -54,12 +55,20 @@ class GmailRateLimiter:
         self.max_tokens = max_tokens or settings.gmail_rate_limit_qps
         self.refill_rate = refill_rate or float(settings.gmail_rate_limit_qps)
 
-        # Connect to Redis
+        # Connect to Redis with SSL configuration for Heroku (rediss://)
+        connection_params = {
+            "decode_responses": True,
+            "socket_connect_timeout": 5,
+            "socket_timeout": 5,
+        }
+
+        # Add SSL configuration for rediss:// URLs (Heroku Redis)
+        if self.redis_url.startswith("rediss://"):
+            connection_params["ssl_cert_reqs"] = ssl.CERT_NONE
+
         self.redis_client = redis.from_url(
             self.redis_url,
-            decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
+            **connection_params,
         )
 
         # Redis key for storing token bucket state
