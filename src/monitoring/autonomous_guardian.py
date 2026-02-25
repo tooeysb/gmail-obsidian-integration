@@ -163,7 +163,7 @@ class ScanGuardian:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{self.api_url}/api/scan/start",
+                    f"{self.api_url}/scan/start",
                     json={
                         "user_id": self.user_id,
                         "account_labels": ["procore-main", "procore-private", "personal"],

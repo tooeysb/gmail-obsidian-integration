@@ -35,7 +35,7 @@ async def start_scan():
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{api_url}/api/scan/start",
+                f"{api_url}/scan/start",
                 json=payload,
             )
 
