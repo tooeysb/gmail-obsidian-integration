@@ -66,7 +66,7 @@ class ScanGuardian:
                 event_type=event_type,
                 description=description,
                 job_id=job_id,
-                metadata=metadata,
+                event_metadata=metadata,
             )
             db.add(event)
             db.commit()

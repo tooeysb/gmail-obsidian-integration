@@ -26,7 +26,7 @@ class GuardianEvent(Base):
     event_type = Column(String(50), nullable=False)  # stuck_detected, job_killed, scan_restarted, error
     description = Column(Text, nullable=False)
     job_id = Column(UUID(as_uuid=True), nullable=True)  # Related job if applicable
-    metadata = Column(JSON, nullable=True)  # Additional context
+    event_metadata = Column(JSON, nullable=True)  # Additional context
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     resolved_at = Column(DateTime(timezone=True), nullable=True)  # When issue was resolved
 

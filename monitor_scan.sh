@@ -108,8 +108,8 @@ if recent_events:
         print(f"   {icon} {event.event_type.replace('_', ' ').title()}")
         print(f"   └─ {event.description}")
         print(f"   └─ {minutes_ago} minutes ago")
-        if event.metadata:
-            print(f"   └─ Details: {event.metadata}")
+        if event.event_metadata:
+            print(f"   └─ Details: {event.event_metadata}")
         print()
 
 print("=" * 70)
