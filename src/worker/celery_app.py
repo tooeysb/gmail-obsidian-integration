@@ -2,6 +2,7 @@
 Celery application configuration.
 """
 
+import ssl
 from celery import Celery
 
 from src.core.config import settings
@@ -31,10 +32,10 @@ celery_app.conf.update(
     result_expires=3600 * 24,  # Results expire after 24 hours
     # SSL configuration for Heroku Redis (rediss://)
     broker_use_ssl={
-        "ssl_cert_reqs": "CERT_NONE",  # Don't verify certificate (Heroku manages this)
+        "ssl_cert_reqs": ssl.CERT_NONE,  # Don't verify certificate (Heroku manages this)
     },
     redis_backend_use_ssl={
-        "ssl_cert_reqs": "CERT_NONE",  # Don't verify certificate (Heroku manages this)
+        "ssl_cert_reqs": ssl.CERT_NONE,  # Don't verify certificate (Heroku manages this)
     },
 )
 
