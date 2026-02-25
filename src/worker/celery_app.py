@@ -29,6 +29,13 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     result_expires=3600 * 24,  # Results expire after 24 hours
+    # SSL configuration for Heroku Redis (rediss://)
+    broker_use_ssl={
+        "ssl_cert_reqs": "CERT_NONE",  # Don't verify certificate (Heroku manages this)
+    },
+    redis_backend_use_ssl={
+        "ssl_cert_reqs": "CERT_NONE",  # Don't verify certificate (Heroku manages this)
+    },
 )
 
 
