@@ -110,7 +110,9 @@ def scan_gmail_task(
     )
 
     if account_labels is None:
-        account_labels = ["procore-main", "procore-private", "personal"]
+        # Process in order: personal → procore-private → procore-main
+        # This processes tooey@hth-corp.com first, then 2e@procore.com, then tooey@procore.com
+        account_labels = ["personal", "procore-private", "procore-main"]
 
     db = SessionLocal()
     job = None
@@ -200,17 +202,23 @@ def scan_gmail_task(
             )
 
             # Build Gmail query to resume from last processed email
+            # Note: Gmail API returns emails in REVERSE CHRONOLOGICAL order (newest first)
+            # So we fetch emails newer than our last processed email, and they come newest→oldest
             gmail_query = None
             if last_email_date:
                 # Format: after:YYYY/MM/DD
+                # This fetches emails AFTER the newest one we have (i.e., even newer emails)
                 date_str = last_email_date.strftime("%Y/%m/%d")
                 gmail_query = f"after:{date_str}"
                 logger.info(
-                    f"[{correlation_id}] Resuming from {date_str} "
-                    f"(last email: {last_email_date.isoformat()})"
+                    f"[{correlation_id}] Resuming from {date_str} - fetching newer emails "
+                    f"(Gmail returns newest first)"
                 )
             else:
-                logger.info(f"[{correlation_id}] Starting fresh scan (no previous emails)")
+                logger.info(
+                    f"[{correlation_id}] Starting fresh scan - fetching all emails "
+                    f"(newest → oldest)"
+                )
 
             credentials = get_credentials_from_account(account)
             gmail_client = GmailClient(credentials)
