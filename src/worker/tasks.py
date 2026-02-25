@@ -12,7 +12,8 @@ from datetime import datetime
 from typing import Any
 
 from celery import Task
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.core.config import settings
@@ -31,6 +32,36 @@ logger = get_logger(__name__)
 # Database session factory
 engine = create_engine(settings.database_url)
 SessionLocal = sessionmaker(bind=engine)
+
+
+def get_last_processed_email_date(db: Session, account_id: uuid.UUID) -> datetime | None:
+    """
+    Get the date of the most recent email we've already processed for an account.
+    This allows us to resume from where we left off.
+
+    Args:
+        db: Database session
+        account_id: Gmail account ID
+
+    Returns:
+        Most recent email date, or None if no emails exist
+    """
+    result = db.query(func.max(Email.date)).filter(Email.account_id == account_id).scalar()
+    return result
+
+
+def get_existing_email_count(db: Session, account_id: uuid.UUID) -> int:
+    """
+    Count how many emails we've already fetched for an account.
+
+    Args:
+        db: Database session
+        account_id: Gmail account ID
+
+    Returns:
+        Number of emails already in database
+    """
+    return db.query(func.count(Email.id)).filter(Email.account_id == account_id).scalar() or 0
 
 
 class CallbackTask(Task):
@@ -154,12 +185,32 @@ def scan_gmail_task(
 
         all_emails = []
         total_emails_fetched = 0
+        total_emails_skipped = 0  # Track duplicates/already processed
 
         for i, account in enumerate(accounts):
+            # ========================================
+            # Check for existing emails (Resume Logic)
+            # ========================================
+            existing_count = get_existing_email_count(db, account.id)
+            last_email_date = get_last_processed_email_date(db, account.id)
+
             logger.info(
-                f"[{correlation_id}] Fetching emails from {account.account_label} "
-                f"({account.account_email})"
+                f"[{correlation_id}] Account {account.account_label} ({account.account_email}): "
+                f"{existing_count} emails already in database"
             )
+
+            # Build Gmail query to resume from last processed email
+            gmail_query = None
+            if last_email_date:
+                # Format: after:YYYY/MM/DD
+                date_str = last_email_date.strftime("%Y/%m/%d")
+                gmail_query = f"after:{date_str}"
+                logger.info(
+                    f"[{correlation_id}] Resuming from {date_str} "
+                    f"(last email: {last_email_date.isoformat()})"
+                )
+            else:
+                logger.info(f"[{correlation_id}] Starting fresh scan (no previous emails)")
 
             credentials = get_credentials_from_account(account)
             gmail_client = GmailClient(credentials)
@@ -167,10 +218,11 @@ def scan_gmail_task(
             # Fetch emails with pagination
             next_page_token = None
             while True:
-                # Fetch message IDs
+                # Fetch message IDs (with optional date filter for resume)
                 message_ids, next_page_token = gmail_client.fetch_emails_chunked(
                     batch_size=settings.gmail_batch_size,
                     page_token=next_page_token,
+                    query=gmail_query,  # Resume from last date
                 )
 
                 if not message_ids:
@@ -222,9 +274,52 @@ def scan_gmail_task(
                 job.emails_processed = total_emails_fetched
                 db.commit()
 
-                # Save emails to database (batch insert for performance)
-                db.bulk_save_objects(all_emails[-len(email_dicts) :])
-                db.commit()
+                # Save emails to database with upsert logic (skip duplicates)
+                # Use INSERT ... ON CONFLICT DO NOTHING for crash recovery
+                new_emails = all_emails[-len(email_dicts) :]
+                if new_emails:
+                    try:
+                        # Convert Email objects to dicts for insert
+                        email_dicts_for_insert = [
+                            {
+                                "id": email.id,
+                                "user_id": email.user_id,
+                                "account_id": email.account_id,
+                                "gmail_message_id": email.gmail_message_id,
+                                "gmail_thread_id": email.gmail_thread_id,
+                                "subject": email.subject,
+                                "sender_email": email.sender_email,
+                                "sender_name": email.sender_name,
+                                "recipient_emails": email.recipient_emails,
+                                "date": email.date,
+                                "summary": email.summary,
+                                "has_attachments": email.has_attachments,
+                                "attachment_count": email.attachment_count,
+                                "created_at": datetime.utcnow(),
+                                "updated_at": datetime.utcnow(),
+                            }
+                            for email in new_emails
+                        ]
+
+                        # INSERT ... ON CONFLICT DO NOTHING (skip duplicates)
+                        stmt = insert(Email).on_conflict_do_nothing(
+                            index_elements=["account_id", "gmail_message_id"]
+                        )
+                        db.execute(stmt, email_dicts_for_insert)
+                        db.commit()
+
+                        logger.info(
+                            f"[{correlation_id}] Inserted {len(email_dicts_for_insert)} emails "
+                            f"(duplicates automatically skipped)"
+                        )
+
+                    except Exception as e:
+                        logger.error(
+                            f"[{correlation_id}] Error inserting emails: {e}", exc_info=True
+                        )
+                        db.rollback()
+                        # Continue processing - don't crash on insert errors
+                        logger.warning(f"[{correlation_id}] Continuing after insert error...")
 
                 # Add delay between batches to respect rate limits
                 if next_page_token:
