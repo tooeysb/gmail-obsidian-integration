@@ -12,7 +12,8 @@ from datetime import datetime
 from typing import Any
 
 from celery import Task
-from sqlalchemy import create_engine, func, insert
+from sqlalchemy import create_engine, func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
