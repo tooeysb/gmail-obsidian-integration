@@ -137,20 +137,21 @@ class GmailRateLimiter:
 
         return False
 
-    def wait_for_token(self, timeout: float = 60.0) -> None:
+    def wait_for_token(self, tokens: int = 1, timeout: float = 60.0) -> None:
         """
-        Block until a token is available or timeout is reached.
+        Block until tokens are available or timeout is reached.
 
         Args:
+            tokens: Number of tokens to acquire (default: 1)
             timeout: Maximum time to wait in seconds (default: 60)
 
         Raises:
-            GmailRateLimitExceeded: If timeout is reached without acquiring token
+            GmailRateLimitExceeded: If timeout is reached without acquiring tokens
         """
         start_time = time.time()
 
         while time.time() - start_time < timeout:
-            if self.acquire():
+            if self.acquire(tokens=tokens):
                 return
 
             # Calculate sleep time based on refill rate
@@ -159,7 +160,7 @@ class GmailRateLimiter:
             time.sleep(sleep_time)
 
         raise GmailRateLimitExceeded(
-            f"Rate limit exceeded: could not acquire token within {timeout}s"
+            f"Rate limit exceeded: could not acquire {tokens} token(s) within {timeout}s"
         )
 
     def get_token_count(self) -> float:

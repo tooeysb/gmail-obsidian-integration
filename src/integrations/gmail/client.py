@@ -249,7 +249,7 @@ class GmailClient:
         Returns:
             List of parsed email dictionaries
         """
-        self.rate_limiter.wait_for_token()
+        self.rate_limiter.wait_for_token(tokens=len(message_ids))
 
         try:
             batch = self.gmail_service.new_batch_http_request()

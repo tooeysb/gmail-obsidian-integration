@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     )
 
     # Rate Limiting
-    gmail_rate_limit_qps: int = Field(default=10, alias="GMAIL_RATE_LIMIT_QPS")  # Conservative rate: 10 QPS = 600 QPM
+    gmail_rate_limit_qps: int = Field(default=5, alias="GMAIL_RATE_LIMIT_QPS")  # Conservative rate: 5 QPS = 300 QPM (accounts for batch requests)
     gmail_batch_size: int = Field(default=500, alias="GMAIL_BATCH_SIZE")
 
     # Claude Batch Processing
