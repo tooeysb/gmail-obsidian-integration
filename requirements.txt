@@ -1,0 +1,51 @@
+# Web Framework
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+python-multipart==0.0.9
+
+# Database
+sqlalchemy==2.0.27
+alembic==1.13.1
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+
+# Supabase
+supabase==2.3.4
+
+# Task Queue
+celery==5.3.6
+redis==5.0.1
+
+# Gmail API
+google-api-python-client==2.118.0
+google-auth==2.27.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+
+# Claude API
+anthropic==0.18.1
+
+# Utilities
+tenacity==8.2.3
+python-dateutil==2.8.2
+pyyaml==6.0.1
+python-slugify==8.0.4
+
+# Cryptography
+cryptography==42.0.2
+
+# Development
+pytest==8.0.0
+pytest-asyncio==0.23.5
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+black==24.2.0
+ruff==0.2.2
+mypy==1.8.0
+httpx==0.25.2
+
+# Monitoring
+flower==2.0.1
+sentry-sdk[fastapi]==1.40.0
