@@ -56,7 +56,8 @@ class Settings(BaseSettings):
     )
 
     # Rate Limiting
-    gmail_rate_limit_qps: int = Field(default=5, alias="GMAIL_RATE_LIMIT_QPS")  # Conservative rate: 5 QPS = 300 QPM (accounts for batch requests)
+    gmail_rate_limit_qps: int = Field(default=5, alias="GMAIL_RATE_LIMIT_QPS")  # Conservative refill rate: 5 tokens/sec = 300 QPM sustained
+    gmail_rate_limit_burst: int = Field(default=100, alias="GMAIL_RATE_LIMIT_BURST")  # Burst capacity: 100 tokens for immediate batch processing
     gmail_batch_size: int = Field(default=500, alias="GMAIL_BATCH_SIZE")
 
     # Claude Batch Processing

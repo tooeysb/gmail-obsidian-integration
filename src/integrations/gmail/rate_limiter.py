@@ -48,11 +48,11 @@ class GmailRateLimiter:
 
         Args:
             redis_url: Redis connection URL (defaults to settings.redis_url)
-            max_tokens: Maximum tokens in bucket (defaults to settings.gmail_rate_limit_qps)
+            max_tokens: Maximum tokens in bucket (defaults to settings.gmail_rate_limit_burst)
             refill_rate: Tokens added per second (defaults to settings.gmail_rate_limit_qps)
         """
         self.redis_url = redis_url or settings.redis_url
-        self.max_tokens = max_tokens or settings.gmail_rate_limit_qps
+        self.max_tokens = max_tokens or settings.gmail_rate_limit_burst
         self.refill_rate = refill_rate or float(settings.gmail_rate_limit_qps)
 
         # Connect to Redis with SSL configuration for Heroku (rediss://)
