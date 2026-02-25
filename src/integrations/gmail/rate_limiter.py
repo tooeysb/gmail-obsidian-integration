@@ -17,6 +17,9 @@ from tenacity import (
 )
 
 from src.core.config import settings
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class GmailRateLimitExceeded(Exception):
@@ -151,6 +154,12 @@ class GmailRateLimiter:
         start_time = time.time()
 
         while time.time() - start_time < timeout:
+            current_tokens = self.get_token_count()
+            logger.debug(
+                f"Waiting for {tokens} tokens, currently have {current_tokens:.1f} "
+                f"(elapsed: {time.time() - start_time:.1f}s)"
+            )
+
             if self.acquire(tokens=tokens):
                 return
 
