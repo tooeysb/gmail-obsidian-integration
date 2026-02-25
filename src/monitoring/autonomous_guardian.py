@@ -26,7 +26,7 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
-from src.models import Email, SyncJob
+from src.models import Email, GuardianEvent, SyncJob
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,6 +51,30 @@ class ScanGuardian:
 
         self.restart_count = 0
         self.last_fix_time = None
+
+    def log_event(
+        self,
+        event_type: str,
+        description: str,
+        job_id: Optional[str] = None,
+        metadata: Optional[dict] = None
+    ):
+        """Log guardian event to database for visibility."""
+        db = self.SessionLocal()
+        try:
+            event = GuardianEvent(
+                event_type=event_type,
+                description=description,
+                job_id=job_id,
+                metadata=metadata,
+            )
+            db.add(event)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to log guardian event: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
     def get_scan_status(self) -> dict:
         """Get current scan job status and email processing info."""
@@ -214,8 +238,16 @@ class ScanGuardian:
         # Step 1: Kill stuck job
         status = self.get_scan_status()
         if status["running_job"]:
-            logger.info(f"Killing stuck job {status['running_job'].id}")
-            self.kill_stuck_job(str(status["running_job"].id))
+            job_id = str(status["running_job"].id)
+            logger.info(f"Killing stuck job {job_id}")
+            self.kill_stuck_job(job_id)
+
+            # Log job kill event
+            self.log_event(
+                event_type="job_killed",
+                description=f"Auto-killed stuck job: {reason}",
+                job_id=job_id
+            )
             await asyncio.sleep(2)
 
         # Step 2: Wait a bit for worker to settle
@@ -229,8 +261,22 @@ class ScanGuardian:
         if job_id:
             logger.info(f"✅ AUTO-FIX COMPLETE: New scan started with job {job_id}")
             self.restart_count += 1
+
+            # Log scan restart event
+            self.log_event(
+                event_type="scan_restarted",
+                description=f"Auto-started new scan after fixing: {reason}",
+                job_id=job_id,
+                metadata={"restart_count": self.restart_count}
+            )
         else:
             logger.error("❌ AUTO-FIX FAILED: Could not start new scan")
+
+            # Log error event
+            self.log_event(
+                event_type="error",
+                description=f"Failed to start new scan after killing stuck job: {reason}"
+            )
 
     async def monitor_loop(self):
         """Main monitoring loop."""
@@ -250,6 +296,15 @@ class ScanGuardian:
 
                 if is_stuck:
                     logger.warning(f"⚠️  STUCK SCAN DETECTED: {reason}")
+
+                    # Log stuck detection event
+                    job_id = str(status["running_job"].id) if status["running_job"] else None
+                    self.log_event(
+                        event_type="stuck_detected",
+                        description=reason,
+                        job_id=job_id,
+                        metadata={"total_emails": status["total_emails"]}
+                    )
 
                     # Check worker logs for additional context
                     has_errors, log_summary = self.check_worker_logs()
