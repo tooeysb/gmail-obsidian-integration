@@ -296,22 +296,73 @@ class ThemeBatchProcessor:
 
     def process_emails_sync(self, emails: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         """
-        Submit batch and wait for results synchronously.
+        Process emails synchronously using direct API calls (not batch API).
 
-        Convenience method that combines submit_batch() and poll_batch_results().
+        Processes each email immediately for instant results at 2x cost.
+        Use this for immediate feedback instead of batch processing delays.
 
         Args:
-            emails: List of email dictionaries (see submit_batch for schema)
+            emails: List of email dictionaries with keys:
+                - id: Email UUID
+                - subject, sender_email, sender_name, recipient_emails, date, summary
 
         Returns:
             Dictionary mapping email_id → parsed themes
         """
-        batch_id = self.submit_batch(emails)
+        logger.info(f"Processing {len(emails)} emails synchronously (immediate mode)")
 
-        logger.info(f"Waiting for batch {batch_id} to complete...")
+        results = {}
 
-        results = self.poll_batch_results(batch_id)
+        for idx, email in enumerate(emails):
+            # Extract email fields
+            email_id = str(email.id if hasattr(email, 'id') else email["id"])
+            email_date = email.date if hasattr(email, 'date') else email["date"]
+            date_str = (
+                email_date.isoformat()
+                if isinstance(email_date, datetime)
+                else str(email_date)
+            )
 
-        logger.info(f"Batch {batch_id} processing complete. {len(results)} results retrieved.")
+            subject = email.subject if hasattr(email, 'subject') else email.get("subject")
+            sender_email = email.sender_email if hasattr(email, 'sender_email') else email["sender_email"]
+            sender_name = email.sender_name if hasattr(email, 'sender_name') else email.get("sender_name")
+            recipient_emails = email.recipient_emails if hasattr(email, 'recipient_emails') else email["recipient_emails"]
+            summary = email.summary if hasattr(email, 'summary') else email.get("summary")
 
+            # Generate prompt
+            user_prompt = generate_user_prompt(
+                subject=subject,
+                sender_email=sender_email,
+                sender_name=sender_name,
+                recipient_emails=recipient_emails,
+                date=date_str,
+                summary=summary,
+            )
+
+            # Call Claude API directly (synchronous)
+            try:
+                message = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=1024,
+                    system=[
+                        {
+                            "type": "text",
+                            "text": SYSTEM_PROMPT,
+                            "cache_control": {"type": "ephemeral"},  # Enable caching
+                        }
+                    ],
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+
+                # Parse themes from response
+                themes = self.parse_themes(message)
+                results[email_id] = themes
+
+                logger.info(f"Processed email {idx + 1}/{len(emails)}: {email_id}")
+
+            except Exception as e:
+                logger.error(f"Failed to process email {email_id}: {e}")
+                results[email_id] = self._empty_themes()
+
+        logger.info(f"Synchronous processing complete. {len(results)} emails processed.")
         return results
