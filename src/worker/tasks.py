@@ -51,6 +51,22 @@ def get_last_processed_email_date(db: Session, account_id: uuid.UUID) -> datetim
     return result
 
 
+def get_oldest_processed_email_date(db: Session, account_id: uuid.UUID) -> datetime | None:
+    """
+    Get the date of the oldest email we've already processed for an account.
+    Used for historical backfill - fetching emails before the oldest one we have.
+
+    Args:
+        db: Database session
+        account_id: Gmail account ID
+
+    Returns:
+        Oldest email date, or None if no emails exist
+    """
+    result = db.query(func.min(Email.date)).filter(Email.account_id == account_id).scalar()
+    return result
+
+
 def get_existing_email_count(db: Session, account_id: uuid.UUID) -> int:
     """
     Count how many emails we've already fetched for an account.
@@ -196,25 +212,26 @@ def scan_gmail_task(
             # Check for existing emails (Resume Logic)
             # ========================================
             existing_count = get_existing_email_count(db, account.id)
-            last_email_date = get_last_processed_email_date(db, account.id)
+            oldest_email_date = get_oldest_processed_email_date(db, account.id)
 
             logger.info(
                 f"[{correlation_id}] Account {account.account_label} ({account.account_email}): "
                 f"{existing_count} emails already in database"
             )
 
-            # Build Gmail query to resume from last processed email
-            # Note: Gmail API returns emails in REVERSE CHRONOLOGICAL order (newest first)
-            # So we fetch emails newer than our last processed email, and they come newest→oldest
+            # Build Gmail query for HISTORICAL BACKFILL
+            # Strategy: Fetch emails BEFORE the oldest one we have, going backwards in time
+            # Gmail API returns results newest→oldest, so "before:2024/01/01" gives us
+            # emails from 2024/01/01 going backwards (2023/12/31, 2023/12/30, etc.)
             gmail_query = None
-            if last_email_date:
-                # Format: after:YYYY/MM/DD
-                # This fetches emails AFTER the newest one we have (i.e., even newer emails)
-                date_str = last_email_date.strftime("%Y/%m/%d")
-                gmail_query = f"after:{date_str}"
+            if oldest_email_date:
+                # Format: before:YYYY/MM/DD
+                # This fetches emails BEFORE the oldest one we have (historical backfill)
+                date_str = oldest_email_date.strftime("%Y/%m/%d")
+                gmail_query = f"before:{date_str}"
                 logger.info(
-                    f"[{correlation_id}] Resuming from {date_str} - fetching newer emails "
-                    f"(Gmail returns newest first)"
+                    f"[{correlation_id}] Historical backfill from {date_str} - fetching older emails "
+                    f"(going backwards in time)"
                 )
             else:
                 logger.info(
