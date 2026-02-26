@@ -390,7 +390,7 @@ def scan_gmail_task(
                         id=uuid.uuid4(),
                         email_id=email.id,
                         tag=tag_dict["tag"],
-                        tag_category=tag_dict["category"],
+                        tag_category=tag_dict["tag_category"],
                         confidence=tag_dict.get("confidence"),
                     )
                     db.add(email_tag)
