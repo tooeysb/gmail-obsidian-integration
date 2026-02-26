@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     # Claude Batch Processing
     claude_batch_size: int = Field(default=100, alias="CLAUDE_BATCH_SIZE")
     claude_model: str = Field(
-        default="claude-haiku-4.5-20241022",
+        default="claude-haiku-4-5-20251001",  # Correct Haiku 4.5 model ID
         alias="CLAUDE_MODEL",
     )
 
