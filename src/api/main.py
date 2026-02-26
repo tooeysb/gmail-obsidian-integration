@@ -64,7 +64,8 @@ async def health_check():
 
 
 # Include routers
-from src.api.routers import auth, scan
+from src.api.routers import auth, dashboard, scan
 
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(scan.router, prefix="/scan", tags=["scanning"])
+app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
