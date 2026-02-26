@@ -69,20 +69,29 @@ class ThemeBatchProcessor:
         # Build batch requests
         requests = []
         for email in emails:
-            email_id = str(email["id"])
+            # Handle both Email model objects and dictionaries
+            email_id = str(email.id if hasattr(email, 'id') else email["id"])
+            email_date = email.date if hasattr(email, 'date') else email["date"]
             date_str = (
-                email["date"].isoformat()
-                if isinstance(email["date"], datetime)
-                else str(email["date"])
+                email_date.isoformat()
+                if isinstance(email_date, datetime)
+                else str(email_date)
             )
 
+            # Extract fields from model or dict
+            subject = email.subject if hasattr(email, 'subject') else email.get("subject")
+            sender_email = email.sender_email if hasattr(email, 'sender_email') else email["sender_email"]
+            sender_name = email.sender_name if hasattr(email, 'sender_name') else email.get("sender_name")
+            recipient_emails = email.recipient_emails if hasattr(email, 'recipient_emails') else email["recipient_emails"]
+            summary = email.summary if hasattr(email, 'summary') else email.get("summary")
+
             user_prompt = generate_user_prompt(
-                subject=email.get("subject"),
-                sender_email=email["sender_email"],
-                sender_name=email.get("sender_name"),
-                recipient_emails=email["recipient_emails"],
+                subject=subject,
+                sender_email=sender_email,
+                sender_name=sender_name,
+                recipient_emails=recipient_emails,
                 date=date_str,
-                summary=email.get("summary"),
+                summary=summary,
             )
 
             # Create request with prompt caching on system prompt
