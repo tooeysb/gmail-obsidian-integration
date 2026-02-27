@@ -185,6 +185,8 @@ def fetch_all_message_ids(user_id: str, account_label: str = None):
                 ]
                 job = group(tasks)
                 job.apply_async()
+    finally:
+        db.close()
 
 
 @celery_app.task(name="fetch_message_batch")
