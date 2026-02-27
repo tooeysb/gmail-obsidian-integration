@@ -92,10 +92,14 @@ class GmailRateLimiter:
         self.refill_rate = refill_rate or float(settings.gmail_rate_limit_qps)
 
         # Connect to Redis with SSL configuration for Heroku (rediss://)
+        # Limit max_connections to avoid exhausting Heroku Redis connection limit
+        # (shared with Celery broker connections)
         connection_params = {
             "decode_responses": True,
             "socket_connect_timeout": 5,
             "socket_timeout": 5,
+            "max_connections": 2,
+            "retry_on_error": [redis.ConnectionError, redis.TimeoutError],
         }
 
         # Add SSL configuration for rediss:// URLs (Heroku Redis)
@@ -124,11 +128,15 @@ class GmailRateLimiter:
         Returns:
             True if tokens were acquired, False if rate limit exceeded
         """
-        result = self._acquire_script(
-            keys=[self.bucket_key, self.timestamp_key],
-            args=[self.max_tokens, self.refill_rate, tokens, time.time()],
-        )
-        return bool(result)
+        try:
+            result = self._acquire_script(
+                keys=[self.bucket_key, self.timestamp_key],
+                args=[self.max_tokens, self.refill_rate, tokens, time.time()],
+            )
+            return bool(result)
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            logger.warning(f"Redis connection error in acquire: {e}")
+            return False
 
     def wait_for_token(self, tokens: int = 1, timeout: float = 60.0) -> None:
         """
