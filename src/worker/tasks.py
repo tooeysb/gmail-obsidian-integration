@@ -213,93 +213,153 @@ def scan_gmail_task(
             # ========================================
             existing_count = get_existing_email_count(db, account.id)
             oldest_email_date = get_oldest_processed_email_date(db, account.id)
+            newest_email_date = get_last_processed_email_date(db, account.id)
 
             logger.info(
                 f"[{correlation_id}] Account {account.account_label} ({account.account_email}): "
                 f"{existing_count} emails already in database"
             )
 
-            # Build Gmail query for HISTORICAL BACKFILL
-            # Strategy: Fetch emails BEFORE the oldest one we have, going backwards in time
-            # Gmail API returns results newest→oldest, so "before:2024/01/01" gives us
-            # emails from 2024/01/01 going backwards (2023/12/31, 2023/12/30, etc.)
-            gmail_query = None
-            if oldest_email_date:
-                # Format: before:YYYY/MM/DD
-                # This fetches emails BEFORE the oldest one we have (historical backfill)
-                date_str = oldest_email_date.strftime("%Y/%m/%d")
-                gmail_query = f"before:{date_str}"
-                logger.info(
-                    f"[{correlation_id}] Historical backfill from {date_str} - fetching older emails "
-                    f"(going backwards in time)"
-                )
-            else:
-                logger.info(
-                    f"[{correlation_id}] Starting fresh scan - fetching all emails "
-                    f"(newest → oldest)"
-                )
-
             credentials = get_credentials_from_account(account)
             gmail_client = GmailClient(credentials)
 
-            # Fetch emails with pagination
-            next_page_token = None
-            while True:
-                # Fetch message IDs (with optional date filter for resume)
-                message_ids, next_page_token = gmail_client.fetch_emails_chunked(
-                    batch_size=settings.gmail_batch_size,
-                    page_token=next_page_token,
-                    query=gmail_query,  # Resume from last date
-                )
+            # ========================================
+            # DUAL SYNC STRATEGY: New Emails + Historical Backfill
+            # ========================================
+            # 1. FORWARD SYNC: Fetch NEW emails (after newest we have)
+            # 2. BACKWARD SYNC: Fetch HISTORICAL emails (before oldest we have)
+            # This ensures we catch both new arrivals AND fill historical gaps
 
-                if not message_ids:
-                    break
+            queries_to_run = []
+
+            # GAP-FILL STRATEGY: If we have existing emails, specifically query CATEGORY labels
+            # that were missed during initial INBOX-only backfill
+            # Gmail categories: PROMOTIONS, SOCIAL, FORUMS, UPDATES
+            if oldest_email_date and newest_email_date:
+                # Query each category separately to be more targeted
+                for category in ["PROMOTIONS", "SOCIAL", "FORUMS", "UPDATES"]:
+                    queries_to_run.append({
+                        "query": f"label:CATEGORY_{category}",
+                        "description": f"gap-fill scan (CATEGORY_{category} emails missed in initial backfill)"
+                    })
+
+            if newest_email_date:
+                # Forward sync: Fetch emails AFTER the newest one (new emails)
+                # Use in:anywhere to include SENT, CATEGORY_*, and all labels
+                after_date_str = newest_email_date.strftime("%Y/%m/%d")
+                queries_to_run.append({
+                    "query": f"in:anywhere after:{after_date_str}",
+                    "description": f"forward sync (new emails after {after_date_str})"
+                })
+
+            if oldest_email_date:
+                # Backward sync: Fetch emails BEFORE the oldest one (historical backfill)
+                # Use in:anywhere to include SENT, CATEGORY_*, and all labels
+                before_date_str = oldest_email_date.strftime("%Y/%m/%d")
+                queries_to_run.append({
+                    "query": f"in:anywhere before:{before_date_str}",
+                    "description": f"historical backfill (old emails before {before_date_str})"
+                })
+
+            if not queries_to_run:
+                # First scan ever - fetch all emails from all labels
+                # Use in:anywhere to include INBOX, SENT, CATEGORY_*, and all labels
+                queries_to_run.append({
+                    "query": "in:anywhere",
+                    "description": "initial scan (all emails from all labels)"
+                })
+
+            logger.info(
+                f"[{correlation_id}] Running {len(queries_to_run)} sync strategies for "
+                f"{account.account_label}"
+            )
+
+            # Run each sync strategy (forward + backward)
+            for strategy in queries_to_run:
+                gmail_query = strategy["query"]
+                description = strategy["description"]
 
                 logger.info(
-                    f"[{correlation_id}] Fetched {len(message_ids)} message IDs from "
-                    f"{account.account_label}"
+                    f"[{correlation_id}] Starting {description} for {account.account_label}"
                 )
 
-                # Fetch full message details
-                email_dicts = gmail_client.fetch_message_batch(message_ids)
-                logger.info(
-                    f"[{correlation_id}] Fetched {len(email_dicts)} full messages from "
-                    f"{account.account_label}"
-                )
+                # Fetch emails with pagination
+                next_page_token = None
+                strategy_fetch_count = 0
 
-                # Create Email objects
-                for email_dict in email_dicts:
-                    email = Email(
-                        id=uuid.uuid4(),
-                        user_id=uuid.UUID(user_id),
-                        account_id=account.id,
-                        gmail_message_id=email_dict["gmail_message_id"],
-                        gmail_thread_id=email_dict.get("gmail_thread_id"),
-                        subject=email_dict.get("subject", ""),
-                        sender_email=email_dict.get("sender_email", ""),
-                        sender_name=email_dict.get("sender_name"),
-                        recipient_emails=email_dict.get("recipient_emails", ""),
-                        date=email_dict.get("date", datetime.utcnow()),
-                        summary=email_dict.get("snippet", "")[:500],  # 500-char summary
-                        has_attachments=email_dict.get("has_attachments", False),
-                        attachment_count=email_dict.get("attachment_count", 0),
+                while True:
+                    # Fetch message IDs (with date filter)
+                    message_ids, next_page_token = gmail_client.fetch_emails_chunked(
+                        batch_size=settings.gmail_batch_size,
+                        page_token=next_page_token,
+                        query=gmail_query,
                     )
-                    all_emails.append(email)
 
-                total_emails_fetched += len(email_dicts)
+                    if not message_ids:
+                        break
 
-                # Update progress (0-40%)
-                progress = int((i / len(accounts)) * 30 + (total_emails_fetched / 10000) * 10)
-                progress = min(progress, 40)
-                self.update_progress(
-                    "emails",
-                    progress,
-                    emails_processed=total_emails_fetched,
-                    message=f"Fetched {total_emails_fetched} emails",
+                    logger.info(
+                        f"[{correlation_id}] Fetched {len(message_ids)} message IDs "
+                        f"({description})"
+                    )
+
+                    # Close DB session before long Gmail fetch to prevent connection timeout
+                    # Gmail fetch takes 2-3 min with rate limiting, causing Supabase to close idle connections
+                    db.close()
+
+                    # Fetch full message details (this takes several minutes)
+                    email_dicts = gmail_client.fetch_message_batch(message_ids)
+                    logger.info(
+                        f"[{correlation_id}] Fetched {len(email_dicts)} full messages "
+                        f"({description})"
+                    )
+
+                    # Reopen DB session for insertion
+                    db = SessionLocal()
+
+                    # Create Email objects
+                    for email_dict in email_dicts:
+                        email = Email(
+                            id=uuid.uuid4(),
+                            user_id=uuid.UUID(user_id),
+                            account_id=account.id,
+                            gmail_message_id=email_dict["gmail_message_id"],
+                            gmail_thread_id=email_dict.get("gmail_thread_id"),
+                            subject=email_dict.get("subject", ""),
+                            sender_email=email_dict.get("sender_email", ""),
+                            sender_name=email_dict.get("sender_name"),
+                            recipient_emails=email_dict.get("recipient_emails", ""),
+                            date=email_dict.get("date", datetime.utcnow()),
+                            summary=email_dict.get("snippet", "")[:500],  # 500-char summary
+                            has_attachments=email_dict.get("has_attachments", False),
+                            attachment_count=email_dict.get("attachment_count", 0),
+                        )
+                        all_emails.append(email)
+
+                    total_emails_fetched += len(email_dicts)
+                    strategy_fetch_count += len(email_dicts)
+
+                    # Update progress (0-40%)
+                    progress = int((i / len(accounts)) * 30 + (total_emails_fetched / 10000) * 10)
+                    progress = min(progress, 40)
+                    self.update_progress(
+                        "emails",
+                        progress,
+                        emails_processed=total_emails_fetched,
+                        message=f"Fetched {total_emails_fetched} emails",
+                    )
+                    job.progress_pct = progress
+                    job.emails_processed = total_emails_fetched
+                    db.commit()
+
+                    # Check if we should continue pagination
+                    if not next_page_token:
+                        break
+
+                # Log completion of this strategy
+                logger.info(
+                    f"[{correlation_id}] Completed {description}: fetched {strategy_fetch_count} emails"
                 )
-                job.progress_pct = progress
-                job.emails_processed = total_emails_fetched
-                db.commit()
 
                 # Save emails to database with upsert logic (skip duplicates)
                 # Use INSERT ... ON CONFLICT DO NOTHING for crash recovery
