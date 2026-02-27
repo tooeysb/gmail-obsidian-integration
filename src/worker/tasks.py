@@ -286,6 +286,7 @@ def scan_gmail_task(
                 # Fetch emails with pagination
                 next_page_token = None
                 strategy_fetch_count = 0
+                email_dicts = []  # Initialize to prevent UnboundLocalError
 
                 while True:
                     # Fetch message IDs (with date filter)
