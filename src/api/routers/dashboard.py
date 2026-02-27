@@ -21,7 +21,7 @@ router = APIRouter()
 # Gmail inbox totals (updated 2026-02-27)
 # These are queried from Gmail API offline to avoid rate limits
 GMAIL_TOTALS = {
-    "tooey@procore.com": 1048991,
+    "tooey@procore.com": 1049134,  # Updated from Gmail API profile.messagesTotal (2026-02-27)
     "2e@procore.com": 87086,
     "tooey@hth-corp.com": 26266,
 }
