@@ -87,7 +87,7 @@ def fetch_all_message_ids(user_id: str, account_label: str = None):
                     # Fetch a page of IDs (500 at a time)
                     message_ids, next_page_token = gmail_client.fetch_emails_chunked(
                         batch_size=500,
-                        next_page_token=next_page_token,
+                        page_token=next_page_token,
                         query="in:anywhere",  # All emails
                     )
 
