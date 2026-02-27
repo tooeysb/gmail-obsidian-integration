@@ -16,14 +16,19 @@ import uuid
 from datetime import datetime, timedelta
 
 from celery import chain, group
-from sqlalchemy import func
+from sqlalchemy import create_engine, func
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import sessionmaker
 
-from src.core.database import get_sync_db_context
+from src.core.config import settings
 from src.core.logging import get_logger
 from src.integrations.gmail.client import GmailClient
 from src.models import Email, EmailQueue, GmailAccount
 from src.worker.celery_app import celery_app
+
+# Database setup
+engine = create_engine(settings.database_url)
+SessionLocal = sessionmaker(bind=engine)
 
 logger = get_logger(__name__)
 
@@ -45,7 +50,8 @@ def fetch_all_message_ids(user_id: str, account_label: str = None):
     task_id = str(uuid.uuid4())[:8]
     logger.info(f"[{task_id}] Starting ID fetch for user {user_id}")
 
-    with get_sync_db_context() as db:
+    db = SessionLocal()
+    try:
         # Get accounts to scan
         query = db.query(GmailAccount).filter(
             GmailAccount.user_id == user_id,
@@ -193,7 +199,8 @@ def fetch_message_batch(account_id: str):
 
     logger.info(f"[{task_id}] Worker {worker_id} claiming batch for account {account_id}")
 
-    with get_sync_db_context() as db:
+    db = SessionLocal()
+    try:
         # Get account
         account = db.query(GmailAccount).filter(GmailAccount.id == account_id).first()
 
@@ -296,3 +303,5 @@ def fetch_message_batch(account_id: str):
             )
             db.commit()
             raise
+    finally:
+        db.close()
