@@ -224,20 +224,17 @@ class GmailClient:
 
         emails = []
 
-        # Gmail batch API has a limit of 100 requests per batch
-        # Use very small chunks to avoid "Too many concurrent requests" errors
-        # Each batch request fires all messages in parallel
-        # Conservative: 5 messages/batch at 3 QPS = ~2 batches/min = 10 messages/min throughput
-        chunk_size = 5
+        # Gmail batch API limits:
+        # 1. Quota: 15,000 units/min = 250 units/sec (messages.get = 5 units)
+        # 2. Concurrency: Gmail rejects batches with too many parallel requests
+        #
+        # Batch size of 25 messages avoids 429 "too many concurrent" errors
+        # Rate limiting is handled by GmailRateLimiter (configured via GMAIL_RATE_LIMIT_QPS)
+        chunk_size = 25
         for i in range(0, len(message_ids), chunk_size):
             chunk = message_ids[i:i + chunk_size]
             batch_emails = self._fetch_batch_chunk(chunk, format)
             emails.extend(batch_emails)
-
-            # Add delay between batches to respect rate limits
-            # 5 messages at 3 QPS = 1.67s minimum, use 2s for safety
-            import time
-            time.sleep(2.0)
 
         return emails
 
@@ -347,10 +344,16 @@ class GmailClient:
             try:
                 date = parsedate_to_datetime(date_header)
             except Exception:
-                # Fallback to internalDate if date header parsing fails
-                internal_date = message.get("internalDate")
-                if internal_date:
-                    date = datetime.fromtimestamp(int(internal_date) / 1000)
+                pass
+
+        # If date header failed or missing, ALWAYS use internalDate as fallback
+        if date is None:
+            internal_date = message.get("internalDate")
+            if internal_date:
+                date = datetime.fromtimestamp(int(internal_date) / 1000)
+            else:
+                # Last resort: use current time (should never happen)
+                date = datetime.now()
 
         # Check for attachments
         has_attachments = False
