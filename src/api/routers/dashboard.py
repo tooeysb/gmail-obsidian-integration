@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from src.core.database import get_sync_db
 from src.core.logging import get_logger
-from src.models import Email, GmailAccount, SyncJob
+from src.models import Email, GmailAccount, SyncJob, GuardianEvent
 
 logger = get_logger(__name__)
 
@@ -41,6 +41,16 @@ class AccountStats(BaseModel):
     estimated_completion: str | None
 
 
+class MonitorEvent(BaseModel):
+    """Monitor activity event."""
+
+    event_type: str
+    description: str
+    account_email: str | None
+    created_at: str
+    time_ago: str  # Human-readable time ago (e.g., "2 minutes ago")
+
+
 class EmailStatsResponse(BaseModel):
     """Email processing statistics."""
 
@@ -51,6 +61,7 @@ class EmailStatsResponse(BaseModel):
     current_job_id: str | None
     current_job_progress: int | None
     accounts: list[AccountStats]
+    monitor_events: list[MonitorEvent]
 
 
 @router.get("/stats", response_model=EmailStatsResponse)
@@ -153,6 +164,44 @@ async def get_email_stats(db: Session = Depends(get_sync_db)) -> EmailStatsRespo
             )
         )
 
+    # Get recent monitor events (last 10)
+    monitor_events_list = []
+    recent_events = (
+        db.query(GuardianEvent)
+        .order_by(GuardianEvent.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    for event in recent_events:
+        # Calculate time ago
+        now = datetime.now(event.created_at.tzinfo if event.created_at.tzinfo else None)
+        delta = now - event.created_at
+
+        if delta.total_seconds() < 60:
+            time_ago = f"{int(delta.total_seconds())}s ago"
+        elif delta.total_seconds() < 3600:
+            time_ago = f"{int(delta.total_seconds() / 60)}m ago"
+        elif delta.total_seconds() < 86400:
+            time_ago = f"{int(delta.total_seconds() / 3600)}h ago"
+        else:
+            time_ago = f"{int(delta.total_seconds() / 86400)}d ago"
+
+        # Extract account email from metadata if available
+        account_email = None
+        if event.event_metadata:
+            account_email = event.event_metadata.get("account_email")
+
+        monitor_events_list.append(
+            MonitorEvent(
+                event_type=event.event_type,
+                description=event.description,
+                account_email=account_email,
+                created_at=event.created_at.isoformat(),
+                time_ago=time_ago,
+            )
+        )
+
     return EmailStatsResponse(
         total_emails=total_emails,
         minutes_since_last_email=minutes_since_last,
@@ -161,6 +210,7 @@ async def get_email_stats(db: Session = Depends(get_sync_db)) -> EmailStatsRespo
         current_job_id=current_job_id,
         current_job_progress=current_job_progress,
         accounts=accounts_list,
+        monitor_events=monitor_events_list,
     )
 
 
@@ -348,6 +398,96 @@ async def get_widget() -> str:
             text-align: center;
             padding: 20px;
         }
+
+        .monitor-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .monitor-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .monitor-title::before {
+            content: '🔍';
+            margin-right: 8px;
+        }
+
+        .monitor-events {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .monitor-event {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            border-left: 3px solid #cbd5e0;
+            font-size: 12px;
+        }
+
+        .monitor-event.monitor_started {
+            border-left-color: #48bb78;
+        }
+
+        .monitor-event.stall_detected {
+            border-left-color: #f56565;
+        }
+
+        .monitor-event.scan_restarted {
+            border-left-color: #ed8936;
+        }
+
+        .monitor-event.slow_processing {
+            border-left-color: #ecc94b;
+        }
+
+        .monitor-event.restart_failed {
+            border-left-color: #e53e3e;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .event-type {
+            font-weight: 600;
+            color: #4a5568;
+            text-transform: capitalize;
+        }
+
+        .event-time {
+            font-size: 11px;
+            color: #a0aec0;
+        }
+
+        .event-description {
+            color: #718096;
+            line-height: 1.4;
+        }
+
+        .event-account {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 2px 8px;
+            background: #edf2f7;
+            border-radius: 4px;
+            font-size: 10px;
+            color: #4a5568;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -367,6 +507,15 @@ async def get_widget() -> str:
                 <div class="status-text" id="status-text">Loading...</div>
             </div>
 
+            <div class="monitor-section">
+                <div class="monitor-title">Monitor Activity</div>
+                <div class="monitor-events" id="monitor-events">
+                    <div style="text-align: center; color: #a0aec0; padding: 20px;">
+                        Loading monitor activity...
+                    </div>
+                </div>
+            </div>
+
             <div class="updated" id="updated">Updated just now</div>
         </div>
 
@@ -378,6 +527,32 @@ async def get_widget() -> str:
 
         function formatNumber(num) {
             return num ? num.toLocaleString() : '0';
+        }
+
+        function renderMonitorEvents(events) {
+            const container = document.getElementById('monitor-events');
+
+            if (!events || events.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #a0aec0; padding: 20px;">No recent monitor activity</div>';
+                return;
+            }
+
+            container.innerHTML = events.map(event => {
+                const accountBadge = event.account_email
+                    ? `<div class="event-account">${event.account_email}</div>`
+                    : '';
+
+                return `
+                    <div class="monitor-event ${event.event_type}">
+                        <div class="event-header">
+                            <div class="event-type">${event.event_type.replace(/_/g, ' ')}</div>
+                            <div class="event-time">${event.time_ago}</div>
+                        </div>
+                        <div class="event-description">${event.description}</div>
+                        ${accountBadge}
+                    </div>
+                `;
+            }).join('');
         }
 
         function renderAccounts(accounts) {
@@ -449,6 +624,11 @@ async def get_widget() -> str:
                 // Render account cards
                 if (data.accounts && data.accounts.length > 0) {
                     renderAccounts(data.accounts);
+                }
+
+                // Render monitor events
+                if (data.monitor_events) {
+                    renderMonitorEvents(data.monitor_events);
                 }
 
                 // Update status

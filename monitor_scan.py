@@ -26,7 +26,7 @@ from sqlalchemy.orm import sessionmaker
 
 from src.core.config import settings
 from src.core.logging import get_logger
-from src.models import Email, GmailAccount
+from src.models import Email, GmailAccount, GuardianEvent
 
 logger = get_logger(__name__)
 
@@ -147,6 +147,28 @@ def get_account_user_id(account_email: str) -> str | None:
         db.close()
 
 
+def log_event(event_type: str, description: str, account_email: str = None, metadata: dict = None):
+    """Log a monitoring event to the database."""
+    db = SessionLocal()
+    try:
+        event_meta = metadata or {}
+        if account_email:
+            event_meta["account_email"] = account_email
+
+        event = GuardianEvent(
+            event_type=event_type,
+            description=description,
+            event_metadata=event_meta,
+        )
+        db.add(event)
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to log event: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def restart_account_sync(account_email: str, reason: str):
     """Restart email sync for a specific account via Celery."""
     logger.info(f"[{account_email}] Triggering restart: {reason}")
@@ -179,6 +201,13 @@ def monitor_loop():
     logger.info(f"Stall threshold: {STALL_THRESHOLD_MINUTES} minutes")
     logger.info(f"Minimum expected rate: {MIN_EXPECTED_RATE} emails/min")
     logger.info("=" * 80)
+
+    # Log monitor start
+    log_event("monitor_started", "Email sync monitor started", metadata={
+        "check_interval": CHECK_INTERVAL_SECONDS,
+        "stall_threshold": STALL_THRESHOLD_MINUTES,
+        "min_expected_rate": MIN_EXPECTED_RATE,
+    })
 
     # Initialize monitors for each account
     monitors = {}
@@ -232,14 +261,49 @@ def monitor_loop():
                 # Take action if needed
                 if result["action"] == "restart":
                     logger.warning(f"🚨 [{account_email}] ACTION REQUIRED: {result['reason']}")
+
+                    # Log stall detection
+                    log_event(
+                        "stall_detected",
+                        f"Account stalled: {result['reason']}",
+                        account_email=account_email,
+                        metadata={
+                            "emails_per_min": result['emails_per_min'],
+                            "consecutive_stalls": result['consecutive_stalls'],
+                        }
+                    )
+
                     if restart_account_sync(account_email, result["reason"]):
                         monitor.record_restart()
                         logger.info(f"✅ [{account_email}] Restart initiated successfully")
+
+                        # Log successful restart
+                        log_event(
+                            "scan_restarted",
+                            f"Successfully restarted sync for {account_email}",
+                            account_email=account_email,
+                            metadata={"restart_count": monitor.restart_count}
+                        )
                     else:
                         logger.error(f"❌ [{account_email}] Restart failed")
 
+                        # Log restart failure
+                        log_event(
+                            "restart_failed",
+                            f"Failed to restart sync for {account_email}",
+                            account_email=account_email,
+                        )
+
                 elif result["action"] == "alert":
                     logger.warning(f"⚠️  [{account_email}] {result['reason']}")
+
+                    # Log slow processing alert
+                    log_event(
+                        "slow_processing",
+                        f"Account processing slowly: {result['reason']}",
+                        account_email=account_email,
+                        metadata={"emails_per_min": result['emails_per_min']}
+                    )
 
             # Wait before next check
             time.sleep(CHECK_INTERVAL_SECONDS)
