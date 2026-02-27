@@ -227,6 +227,23 @@ def fetch_message_batch(account_id: str):
             logger.error(f"[{task_id}] Account {account_id} not found")
             return
 
+        # Unclaim stale IDs (older than 15 minutes) to recover from worker crashes
+        stale_threshold = datetime.utcnow() - timedelta(minutes=15)
+        stale_count = (
+            db.query(EmailQueue)
+            .filter(
+                EmailQueue.account_id == account_id,
+                EmailQueue.claimed_at < stale_threshold,
+                EmailQueue.claimed_by != None,
+            )
+            .update({"claimed_by": None, "claimed_at": None}, synchronize_session=False)
+        )
+        if stale_count > 0:
+            db.commit()
+            logger.info(
+                f"[{task_id}] [{account.account_email}] Unclaimed {stale_count} stale IDs"
+            )
+
         # Claim a batch of unclaimed IDs (atomically)
         claimed_at = datetime.utcnow()
         claim_result = (
