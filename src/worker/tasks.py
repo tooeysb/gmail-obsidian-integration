@@ -340,7 +340,56 @@ def scan_gmail_task(
                     total_emails_fetched += len(email_dicts)
                     strategy_fetch_count += len(email_dicts)
 
-                    # Update progress (0-40%)
+                    # Insert this batch immediately (INSIDE pagination loop)
+                    # This prevents memory issues and provides faster feedback
+                    if email_dicts:
+                        try:
+                            # Get emails from this batch (last N emails in all_emails)
+                            batch_emails = all_emails[-len(email_dicts):]
+
+                            # Convert Email objects to dicts for insert
+                            email_dicts_for_insert = [
+                                {
+                                    "id": email.id,
+                                    "user_id": email.user_id,
+                                    "account_id": email.account_id,
+                                    "gmail_message_id": email.gmail_message_id,
+                                    "gmail_thread_id": email.gmail_thread_id,
+                                    "subject": email.subject,
+                                    "sender_email": email.sender_email,
+                                    "sender_name": email.sender_name,
+                                    "recipient_emails": email.recipient_emails,
+                                    "date": email.date,
+                                    "summary": email.summary,
+                                    "has_attachments": email.has_attachments,
+                                    "attachment_count": email.attachment_count,
+                                    "created_at": datetime.utcnow(),
+                                    "updated_at": datetime.utcnow(),
+                                }
+                                for email in batch_emails
+                            ]
+
+                            # INSERT ... ON CONFLICT DO NOTHING (skip duplicates)
+                            stmt = insert(Email).on_conflict_do_nothing(
+                                index_elements=["account_id", "gmail_message_id"]
+                            )
+                            db.execute(stmt, email_dicts_for_insert)
+                            db.commit()
+
+                            logger.info(
+                                f"[{correlation_id}] Inserted {len(email_dicts_for_insert)} emails "
+                                f"(duplicates automatically skipped)"
+                            )
+
+                        except Exception as e:
+                            logger.error(
+                                f"[{correlation_id}] Error inserting emails: {e}", exc_info=True
+                            )
+                            db.rollback()
+                            # Continue processing - don't crash on insert errors
+                            logger.warning(f"[{correlation_id}] Continuing after insert error...")
+
+                    # Update progress after insertion
                     progress = int((i / len(accounts)) * 30 + (total_emails_fetched / 10000) * 10)
                     progress = min(progress, 40)
                     self.update_progress(
@@ -361,60 +410,6 @@ def scan_gmail_task(
                 logger.info(
                     f"[{correlation_id}] Completed {description}: fetched {strategy_fetch_count} emails"
                 )
-
-                # Save emails to database with upsert logic (skip duplicates)
-                # Use INSERT ... ON CONFLICT DO NOTHING for crash recovery
-                new_emails = all_emails[-len(email_dicts) :]
-                if new_emails:
-                    try:
-                        # Convert Email objects to dicts for insert
-                        email_dicts_for_insert = [
-                            {
-                                "id": email.id,
-                                "user_id": email.user_id,
-                                "account_id": email.account_id,
-                                "gmail_message_id": email.gmail_message_id,
-                                "gmail_thread_id": email.gmail_thread_id,
-                                "subject": email.subject,
-                                "sender_email": email.sender_email,
-                                "sender_name": email.sender_name,
-                                "recipient_emails": email.recipient_emails,
-                                "date": email.date,
-                                "summary": email.summary,
-                                "has_attachments": email.has_attachments,
-                                "attachment_count": email.attachment_count,
-                                "created_at": datetime.utcnow(),
-                                "updated_at": datetime.utcnow(),
-                            }
-                            for email in new_emails
-                        ]
-
-                        # INSERT ... ON CONFLICT DO NOTHING (skip duplicates)
-                        stmt = insert(Email).on_conflict_do_nothing(
-                            index_elements=["account_id", "gmail_message_id"]
-                        )
-                        db.execute(stmt, email_dicts_for_insert)
-                        db.commit()
-
-                        logger.info(
-                            f"[{correlation_id}] Inserted {len(email_dicts_for_insert)} emails "
-                            f"(duplicates automatically skipped)"
-                        )
-
-                    except Exception as e:
-                        logger.error(
-                            f"[{correlation_id}] Error inserting emails: {e}", exc_info=True
-                        )
-                        db.rollback()
-                        # Continue processing - don't crash on insert errors
-                        logger.warning(f"[{correlation_id}] Continuing after insert error...")
-
-                # Add delay between batches to respect rate limits
-                if next_page_token:
-                    time.sleep(2)  # 2 second pause between batches
-                    logger.info(f"[{correlation_id}] Rate limit pause - continuing...")
-                else:
-                    break
 
         logger.info(f"[{correlation_id}] Total emails fetched: {len(all_emails)}")
         job.emails_total = len(all_emails)
