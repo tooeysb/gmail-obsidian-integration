@@ -243,6 +243,14 @@ def monitor_loop():
                     emails_per_min=account_data.get("emails_per_minute", 0.0),
                 )
 
+                # Don't restart accounts that are complete (>= 99.5%)
+                progress_pct = account_data.get("progress_pct", 0.0)
+                if result["action"] == "restart" and progress_pct >= 99.5:
+                    logger.info(
+                        f"⏭️  [{account_email}] Skipping restart - account is {progress_pct:.1f}% complete"
+                    )
+                    result["action"] = None  # Clear the restart action
+
                 # Log status
                 status_emoji = {
                     "healthy": "✅",
