@@ -177,9 +177,34 @@ def check_queue_and_spawn_workers():
     This is the primary self-healing mechanism: every 60 seconds, the monitor
     checks if there are queued emails waiting to be processed and ensures
     enough workers are running to handle them.
+
+    Also recovers stale claims (items claimed >15 min ago that were never
+    completed) to prevent deadlocks where all items are claimed but no
+    workers are running.
     """
     db = SessionLocal()
     try:
+        # Recover stale claims: unclaim items where workers crashed/timed out
+        stale_threshold = datetime.utcnow() - timedelta(minutes=15)
+        stale_count = (
+            db.query(EmailQueue)
+            .filter(
+                EmailQueue.claimed_at < stale_threshold,
+                EmailQueue.claimed_by != None,
+            )
+            .update({"claimed_by": None, "claimed_at": None}, synchronize_session=False)
+        )
+        if stale_count > 0:
+            db.commit()
+            logger.info(
+                f"Recovered {stale_count} stale queue claims (claimed >15 min ago)"
+            )
+            log_event(
+                "stale_claims_recovered",
+                f"Recovered {stale_count} stale queue claims",
+                metadata={"stale_count": stale_count},
+            )
+
         # Get unclaimed counts per account
         queue_stats = (
             db.query(
