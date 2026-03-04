@@ -12,7 +12,7 @@ celery_app = Celery(
     "gmail_obsidian_worker",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["src.worker.tasks", "src.worker.id_first_tasks"],
+    include=["src.worker.tasks", "src.worker.id_first_tasks", "src.worker.backfill_body_tasks"],
 )
 
 # Celery configuration
@@ -26,7 +26,7 @@ config = {
     "task_time_limit": 3600 * 4,  # 4 hours max per task
     "task_soft_time_limit": 3600 * 3,  # 3 hours soft limit
     "worker_prefetch_multiplier": 1,
-    "worker_max_tasks_per_child": 10,
+    "worker_max_tasks_per_child": 200,
     "task_acks_late": True,
     "task_reject_on_worker_lost": True,
     "result_expires": 3600 * 24,  # Results expire after 24 hours

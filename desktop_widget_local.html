@@ -2,139 +2,344 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Email Stats</title>
+    <title>Email Body Backfill</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html, body {
-            width: 200px;
-            height: auto;
-            overflow: hidden;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', Arial, sans-serif;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 16px;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            padding: 28px;
+            min-width: 480px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
         }
 
         .title {
-            font-size: 12px;
+            font-size: 22px;
             font-weight: 700;
-            color: #666;
-            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .live-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #555;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .live-dot.active {
+            background: #48bb78;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .live-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Big numbers row */
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .big-stat {
+            flex: 1;
+            background: #16213e;
+            border-radius: 12px;
+            padding: 18px;
             text-align: center;
         }
 
-        .stat {
-            margin-bottom: 16px;
-        }
-
-        .stat-label {
-            font-size: 9px;
+        .big-stat .label {
+            font-size: 13px;
             font-weight: 600;
-            color: #999;
+            color: #888;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
         }
 
-        .stat-value {
-            font-size: 36px;
-            font-weight: 700;
-            color: #333;
+        .big-stat .value {
+            font-size: 40px;
+            font-weight: 800;
             line-height: 1;
         }
 
-        .stat-value.good { color: #48bb78; }
-        .stat-value.warning { color: #ed8936; }
-        .stat-value.danger { color: #f56565; }
+        .big-stat .unit {
+            font-size: 14px;
+            font-weight: 500;
+            color: #888;
+            margin-top: 6px;
+        }
 
-        .status {
+        .color-blue { color: #63b3ed; }
+        .color-green { color: #48bb78; }
+        .color-orange { color: #ed8936; }
+        .color-purple { color: #b794f4; }
+
+        /* Progress bar */
+        .progress-section {
+            margin-bottom: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .progress-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .progress-pct {
+            font-size: 18px;
+            font-weight: 700;
+            color: #63b3ed;
+        }
+
+        .progress-bar {
+            height: 12px;
+            background: #16213e;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #63b3ed, #48bb78);
+            border-radius: 4px;
+            transition: width 1s ease;
+        }
+
+        /* Account rows */
+        .accounts {
+            margin-bottom: 16px;
+        }
+
+        .account {
+            padding: 14px 16px;
+            background: #16213e;
+            border-radius: 10px;
+            margin-bottom: 8px;
+        }
+
+        .account-top {
             display: flex;
             align-items: center;
-            padding: 8px;
-            background: #f5f5f5;
-            border-radius: 6px;
-            margin-top: 12px;
+            margin-bottom: 8px;
         }
 
-        .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            margin-right: 6px;
-            background: #ccc;
-        }
-
-        .dot.active {
-            background: #48bb78;
-        }
-
-        .status-text {
-            font-size: 9px;
+        .account-email {
+            font-size: 15px;
             font-weight: 600;
+            color: #ccc;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .account-pct {
+            font-size: 16px;
+            font-weight: 700;
+            color: #48bb78;
+            margin-left: 12px;
+        }
+
+        .account-progress {
+            width: 100%;
+            height: 6px;
+            background: #0f3460;
+            border-radius: 3px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+
+        .account-progress-fill {
+            height: 100%;
+            background: #48bb78;
+            border-radius: 3px;
+            transition: width 1s ease;
+        }
+
+        .account-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
             color: #666;
         }
 
-        .updated {
-            text-align: center;
-            font-size: 8px;
+        .account-stat-value {
             color: #999;
-            margin-top: 12px;
+            font-weight: 600;
+        }
+
+        .account-stat-value.speed { color: #63b3ed; }
+        .account-stat-value.eta { color: #ed8936; }
+
+        /* Footer */
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #555;
         }
     </style>
 </head>
 <body>
-    <div class="title">📧 Email Stats</div>
-
-    <div class="stat">
-        <div class="stat-label">Total</div>
-        <div class="stat-value" id="total">—</div>
+    <div class="header">
+        <div class="title">Email Body Backfill</div>
+        <div>
+            <span class="live-dot" id="dot"></span>
+            <span class="live-text" id="status">Loading...</span>
+        </div>
     </div>
 
-    <div class="stat">
-        <div class="stat-label">Minutes Ago</div>
-        <div class="stat-value" id="minutes">—</div>
+    <div class="stats-row">
+        <div class="big-stat">
+            <div class="label">Completed</div>
+            <div class="value color-green" id="done">--</div>
+            <div class="unit" id="done-total">of --</div>
+        </div>
+        <div class="big-stat">
+            <div class="label">Speed</div>
+            <div class="value color-blue" id="rate">--</div>
+            <div class="unit">per min</div>
+        </div>
+        <div class="big-stat">
+            <div class="label">ETA</div>
+            <div class="value color-orange" id="eta">--</div>
+            <div class="unit" id="eta-unit">hours</div>
+        </div>
     </div>
 
-    <div class="status">
-        <div class="dot" id="dot"></div>
-        <div class="status-text" id="status">Loading...</div>
+    <div class="progress-section">
+        <div class="progress-header">
+            <span class="progress-label">Overall Progress</span>
+            <span class="progress-pct" id="pct">0%</span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="fill" style="width: 0%"></div>
+        </div>
     </div>
 
-    <div class="updated" id="updated">—</div>
+    <div class="accounts" id="accounts"></div>
+
+    <div class="footer">
+        <span id="remaining">-- remaining</span>
+        <span id="inflight">-- in-flight</span>
+        <span id="updated">--</span>
+    </div>
 
     <script>
+        function fmt(n) {
+            if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+            return n.toLocaleString();
+        }
+
         async function update() {
             try {
-                const r = await fetch('/api/stats');
+                const r = await fetch('/api/backfill');
                 const d = await r.json();
 
-                document.getElementById('total').textContent = d.total_emails.toLocaleString();
+                if (d.error) {
+                    document.getElementById('status').textContent = 'Error';
+                    return;
+                }
 
-                const mins = d.minutes_since_last_email;
-                const minsEl = document.getElementById('minutes');
-                minsEl.textContent = mins ?? '—';
-                minsEl.className = 'stat-value ' + (mins < 5 ? 'good' : mins < 15 ? 'warning' : 'danger');
+                // Big stats
+                document.getElementById('done').textContent = fmt(d.total_done);
+                document.getElementById('done-total').textContent = `of ${fmt(d.total)}`;
+                document.getElementById('rate').textContent = d.rate_per_min > 0 ? fmt(d.rate_per_min) : '--';
 
+                if (d.eta_hours !== null && d.eta_hours > 0) {
+                    if (d.eta_hours < 1) {
+                        document.getElementById('eta').textContent = Math.round(d.eta_hours * 60);
+                        document.getElementById('eta-unit').textContent = 'minutes';
+                    } else {
+                        document.getElementById('eta').textContent = d.eta_hours.toFixed(1);
+                        document.getElementById('eta-unit').textContent = 'hours';
+                    }
+                } else {
+                    document.getElementById('eta').textContent = '--';
+                }
+
+                // Progress bar
+                document.getElementById('pct').textContent = d.pct + '%';
+                document.getElementById('fill').style.width = d.pct + '%';
+
+                // Account rows
+                const container = document.getElementById('accounts');
+                container.innerHTML = d.accounts.map(a => {
+                    let etaText = '--';
+                    if (a.eta_hours !== null && a.eta_hours > 0) {
+                        etaText = a.eta_hours < 1
+                            ? Math.round(a.eta_hours * 60) + 'm'
+                            : a.eta_hours.toFixed(1) + 'h';
+                    }
+                    return `
+                    <div class="account">
+                        <div class="account-top">
+                            <div class="account-email">${a.email}</div>
+                            <div class="account-pct">${a.pct}%</div>
+                        </div>
+                        <div class="account-progress">
+                            <div class="account-progress-fill" style="width: ${a.pct}%"></div>
+                        </div>
+                        <div class="account-stats">
+                            <span>${fmt(a.done)} / ${fmt(a.total)}</span>
+                            <span><span class="account-stat-value speed">${a.rate_per_min > 0 ? fmt(a.rate_per_min) : '--'}</span>/min</span>
+                            <span>ETA <span class="account-stat-value eta">${etaText}</span></span>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                // Footer
+                document.getElementById('remaining').textContent = fmt(d.total_remaining) + ' remaining';
+                document.getElementById('inflight').textContent = d.total_fetching + ' in-flight';
+                document.getElementById('updated').textContent = new Date().toLocaleTimeString();
+
+                // Status dot
                 const dot = document.getElementById('dot');
                 const status = document.getElementById('status');
-                if (d.active_scans > 0) {
-                    dot.className = 'dot active';
-                    status.textContent = `Scanning (${d.current_job_progress}%)`;
+                if (d.total_fetching > 0 || d.rate_per_min > 0) {
+                    dot.className = 'live-dot active';
+                    status.textContent = 'Processing';
+                } else if (d.total_remaining === 0) {
+                    dot.className = 'live-dot active';
+                    status.textContent = 'Complete';
                 } else {
-                    dot.className = 'dot';
+                    dot.className = 'live-dot';
                     status.textContent = 'Idle';
                 }
 
-                document.getElementById('updated').textContent = new Date().toLocaleTimeString();
             } catch (e) {
                 console.error(e);
+                document.getElementById('status').textContent = 'Offline';
             }
         }
 

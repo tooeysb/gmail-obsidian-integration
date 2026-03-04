@@ -275,7 +275,7 @@ def fetch_message_batch(account_id: str):
         gmail_client = GmailClient(creds)
 
         try:
-            email_dicts = gmail_client.fetch_message_batch(claimed_ids)
+            email_dicts = gmail_client.fetch_message_batch(claimed_ids, format="full")
             logger.info(f"[{task_id}] Fetched {len(email_dicts)} full messages")
 
             # Insert into Email table
@@ -301,6 +301,7 @@ def fetch_message_batch(account_id: str):
                     "recipient_emails": email_dict.get("recipient_emails", ""),
                     "date": email_date,
                     "summary": email_dict.get("snippet", "")[:500],
+                    "body": email_dict.get("body"),
                     "has_attachments": email_dict.get("has_attachments", False),
                     "attachment_count": email_dict.get("attachment_count", 0),
                     "created_at": datetime.utcnow(),

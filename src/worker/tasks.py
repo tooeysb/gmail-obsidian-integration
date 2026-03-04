@@ -309,7 +309,7 @@ def scan_gmail_task(
                     db.close()
 
                     # Fetch full message details (this takes several minutes)
-                    email_dicts = gmail_client.fetch_message_batch(message_ids)
+                    email_dicts = gmail_client.fetch_message_batch(message_ids, format="full")
                     logger.info(
                         f"[{correlation_id}] Fetched {len(email_dicts)} full messages "
                         f"({description})"
@@ -332,6 +332,7 @@ def scan_gmail_task(
                             recipient_emails=email_dict.get("recipient_emails", ""),
                             date=email_dict.get("date", datetime.utcnow()),
                             summary=email_dict.get("snippet", "")[:500],  # 500-char summary
+                            body=email_dict.get("body"),
                             has_attachments=email_dict.get("has_attachments", False),
                             attachment_count=email_dict.get("attachment_count", 0),
                         )
@@ -361,6 +362,7 @@ def scan_gmail_task(
                                     "recipient_emails": email.recipient_emails,
                                     "date": email.date,
                                     "summary": email.summary,
+                                    "body": email.body,
                                     "has_attachments": email.has_attachments,
                                     "attachment_count": email.attachment_count,
                                     "created_at": datetime.utcnow(),

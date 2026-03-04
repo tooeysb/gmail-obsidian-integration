@@ -224,10 +224,8 @@ class GmailClient:
 
         emails = []
 
-        # Gmail batch API has a limit of 100 requests per batch
-        # Gmail also limits concurrent requests per user to ~10-20.
-        # Use chunks of 20 to stay under the concurrent limit while
-        # the rate limiter handles QPM pacing between chunks.
+        # Gmail batch API chunk size. Each sub-request in the batch counts
+        # against Gmail's concurrent request limit per user.
         chunk_size = 20
         for i in range(0, len(message_ids), chunk_size):
             chunk = message_ids[i:i + chunk_size]
@@ -357,6 +355,11 @@ class GmailClient:
                     has_attachments = True
                     attachment_count += 1
 
+        # Extract body when fetched with format="full"
+        body = None
+        if "payload" in message:
+            body = self._extract_body_from_payload(message["payload"])
+
         return {
             "gmail_message_id": msg_id,
             "gmail_thread_id": thread_id,
@@ -368,6 +371,7 @@ class GmailClient:
             "has_attachments": has_attachments,
             "attachment_count": attachment_count,
             "snippet": snippet,
+            "body": body,
         }
 
     def get_message_body(self, message_id: str) -> str | None:

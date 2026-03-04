@@ -23,13 +23,14 @@ from src.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from src.models.account import GmailAccount
+    from src.models.email_participant import EmailParticipant
     from src.models.user import User
 
 
 class Email(Base, UUIDMixin, TimestampMixin):
     """
     Email model.
-    Stores email metadata and summary (not full body for privacy).
+    Stores email metadata, summary, and optional full body text.
     Each email is associated with a specific Gmail account.
     """
 
@@ -80,9 +81,13 @@ class Email(Base, UUIDMixin, TimestampMixin):
         DateTime(timezone=True), nullable=False, index=True, comment="Email date"
     )
 
-    # Summary (not full body for privacy)
+    # Content
     summary: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="500-char summary of email content"
+    )
+
+    body: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="Full plain-text email body"
     )
 
     # Metadata
@@ -101,6 +106,10 @@ class Email(Base, UUIDMixin, TimestampMixin):
 
     tags: Mapped[list["EmailTag"]] = relationship(
         "EmailTag", back_populates="email", cascade="all, delete-orphan"
+    )
+
+    participants: Mapped[list["EmailParticipant"]] = relationship(
+        "EmailParticipant", back_populates="email", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
