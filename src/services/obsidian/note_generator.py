@@ -181,6 +181,13 @@ class NoteGenerator:
             lines.append(email.summary)
             lines.append("")
 
+        # Add body section
+        if email.body:
+            lines.append("## Body")
+            lines.append("")
+            lines.append(email.body)
+            lines.append("")
+
         # Add detected themes by category
         if tags:
             lines.append("## Detected Themes")

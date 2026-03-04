@@ -28,6 +28,9 @@ class ObsidianVaultManager:
         Directory structure:
         - Contacts/
         - Emails/YYYY/MM/
+        - People/
+        - Threads/
+        - Indexes/
         - .obsidian/
 
         Creates basic Obsidian config in .obsidian/config.json.
@@ -42,6 +45,16 @@ class ObsidianVaultManager:
         # Create Emails directory
         emails_dir = self.vault_path / "Emails"
         emails_dir.mkdir(exist_ok=True)
+
+        # Create relationship intelligence directories
+        people_dir = self.vault_path / "People"
+        people_dir.mkdir(exist_ok=True)
+
+        threads_dir = self.vault_path / "Threads"
+        threads_dir.mkdir(exist_ok=True)
+
+        indexes_dir = self.vault_path / "Indexes"
+        indexes_dir.mkdir(exist_ok=True)
 
         # Create .obsidian directory
         obsidian_dir = self.vault_path / ".obsidian"
