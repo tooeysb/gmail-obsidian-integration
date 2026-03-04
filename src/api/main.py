@@ -83,7 +83,11 @@ async def health_check():
     try:
         import redis as redis_lib
 
-        r = redis_lib.from_url(settings.redis_url, socket_connect_timeout=2)
+        r = redis_lib.from_url(
+            settings.redis_url,
+            socket_connect_timeout=2,
+            ssl_cert_reqs=None,  # Heroku Redis uses self-signed TLS certs
+        )
         r.ping()
         r.close()
         health["redis"] = "connected"
