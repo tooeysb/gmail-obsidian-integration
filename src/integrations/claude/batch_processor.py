@@ -4,7 +4,6 @@ Uses Batch API with prompt caching for 90%+ cost savings.
 """
 
 import json
-import time
 from datetime import datetime
 from typing import Any
 
@@ -70,20 +69,26 @@ class ThemeBatchProcessor:
         requests = []
         for email in emails:
             # Handle both Email model objects and dictionaries
-            email_id = str(email.id if hasattr(email, 'id') else email["id"])
-            email_date = email.date if hasattr(email, 'date') else email["date"]
+            email_id = str(email.id if hasattr(email, "id") else email["id"])
+            email_date = email.date if hasattr(email, "date") else email["date"]
             date_str = (
-                email_date.isoformat()
-                if isinstance(email_date, datetime)
-                else str(email_date)
+                email_date.isoformat() if isinstance(email_date, datetime) else str(email_date)
             )
 
             # Extract fields from model or dict
-            subject = email.subject if hasattr(email, 'subject') else email.get("subject")
-            sender_email = email.sender_email if hasattr(email, 'sender_email') else email["sender_email"]
-            sender_name = email.sender_name if hasattr(email, 'sender_name') else email.get("sender_name")
-            recipient_emails = email.recipient_emails if hasattr(email, 'recipient_emails') else email["recipient_emails"]
-            summary = email.summary if hasattr(email, 'summary') else email.get("summary")
+            subject = email.subject if hasattr(email, "subject") else email.get("subject")
+            sender_email = (
+                email.sender_email if hasattr(email, "sender_email") else email["sender_email"]
+            )
+            sender_name = (
+                email.sender_name if hasattr(email, "sender_name") else email.get("sender_name")
+            )
+            recipient_emails = (
+                email.recipient_emails
+                if hasattr(email, "recipient_emails")
+                else email["recipient_emails"]
+            )
+            summary = email.summary if hasattr(email, "summary") else email.get("summary")
 
             user_prompt = generate_user_prompt(
                 subject=subject,
@@ -277,7 +282,7 @@ class ThemeBatchProcessor:
             themes = json.loads(text_content)
         except json.JSONDecodeError as e:
             logger.error("Failed to parse JSON response: %s", text_content)
-            raise ValueError(f"Invalid JSON response from Claude: {e}")
+            raise ValueError(f"Invalid JSON response from Claude: {e}") from None
 
         # Validate required fields
         required_fields = {
@@ -335,19 +340,25 @@ class ThemeBatchProcessor:
 
         for idx, email in enumerate(emails):
             # Extract email fields
-            email_id = str(email.id if hasattr(email, 'id') else email["id"])
-            email_date = email.date if hasattr(email, 'date') else email["date"]
+            email_id = str(email.id if hasattr(email, "id") else email["id"])
+            email_date = email.date if hasattr(email, "date") else email["date"]
             date_str = (
-                email_date.isoformat()
-                if isinstance(email_date, datetime)
-                else str(email_date)
+                email_date.isoformat() if isinstance(email_date, datetime) else str(email_date)
             )
 
-            subject = email.subject if hasattr(email, 'subject') else email.get("subject")
-            sender_email = email.sender_email if hasattr(email, 'sender_email') else email["sender_email"]
-            sender_name = email.sender_name if hasattr(email, 'sender_name') else email.get("sender_name")
-            recipient_emails = email.recipient_emails if hasattr(email, 'recipient_emails') else email["recipient_emails"]
-            summary = email.summary if hasattr(email, 'summary') else email.get("summary")
+            subject = email.subject if hasattr(email, "subject") else email.get("subject")
+            sender_email = (
+                email.sender_email if hasattr(email, "sender_email") else email["sender_email"]
+            )
+            sender_name = (
+                email.sender_name if hasattr(email, "sender_name") else email.get("sender_name")
+            )
+            recipient_emails = (
+                email.recipient_emails
+                if hasattr(email, "recipient_emails")
+                else email["recipient_emails"]
+            )
+            summary = email.summary if hasattr(email, "summary") else email.get("summary")
 
             # Generate prompt
             user_prompt = generate_user_prompt(

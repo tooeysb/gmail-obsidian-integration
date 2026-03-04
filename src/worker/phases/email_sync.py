@@ -6,8 +6,9 @@ Closes/reopens DB sessions around long Gmail fetches to avoid Supabase connectio
 """
 
 import uuid
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -54,7 +55,10 @@ def sync_emails_for_accounts(
 
         logger.info(
             "[%s] Account %s (%s): %d emails already in database",
-            correlation_id, account.account_label, account.account_email, existing_count,
+            correlation_id,
+            account.account_label,
+            account.account_email,
+            existing_count,
         )
 
         credentials = get_credentials(account)
@@ -64,7 +68,9 @@ def sync_emails_for_accounts(
 
         logger.info(
             "[%s] Running %d sync strategies for %s",
-            correlation_id, len(queries_to_run), account.account_label,
+            correlation_id,
+            len(queries_to_run),
+            account.account_label,
         )
 
         for strategy in queries_to_run:
@@ -90,7 +96,9 @@ def sync_emails_for_accounts(
 
                 logger.info(
                     "[%s] Fetched %d message IDs (%s)",
-                    correlation_id, len(message_ids), description,
+                    correlation_id,
+                    len(message_ids),
+                    description,
                 )
 
                 # Close DB session before long Gmail fetch to prevent connection timeout
@@ -99,7 +107,9 @@ def sync_emails_for_accounts(
                 email_dicts = gmail_client.fetch_message_batch(message_ids, format="full")
                 logger.info(
                     "[%s] Fetched %d full messages (%s)",
-                    correlation_id, len(email_dicts), description,
+                    correlation_id,
+                    len(email_dicts),
+                    description,
                 )
 
                 # Reopen DB session and re-merge detached ORM objects
@@ -121,7 +131,12 @@ def sync_emails_for_accounts(
                     + (total_emails_fetched / 10000) * 5
                 )
                 progress = min(progress, PROGRESS_MAX)
-                progress_callback("emails", progress, total_emails_fetched, f"Fetched {total_emails_fetched} emails")
+                progress_callback(
+                    "emails",
+                    progress,
+                    total_emails_fetched,
+                    f"Fetched {total_emails_fetched} emails",
+                )
                 job.progress_pct = progress
                 job.emails_processed = total_emails_fetched
                 db.commit()
@@ -131,7 +146,9 @@ def sync_emails_for_accounts(
 
             logger.info(
                 "[%s] Completed %s: fetched %d emails",
-                correlation_id, description, strategy_fetch_count,
+                correlation_id,
+                description,
+                strategy_fetch_count,
             )
 
     logger.info("[%s] Total emails fetched: %d", correlation_id, len(all_emails))
@@ -149,56 +166,64 @@ def _build_sync_queries(
 
     if oldest_email_date and newest_email_date:
         for category in ["PROMOTIONS", "SOCIAL", "FORUMS", "UPDATES"]:
-            queries.append({
-                "query": f"label:CATEGORY_{category}",
-                "description": f"gap-fill scan (CATEGORY_{category} emails missed in initial backfill)",
-            })
+            queries.append(
+                {
+                    "query": f"label:CATEGORY_{category}",
+                    "description": f"gap-fill scan (CATEGORY_{category} emails missed in initial backfill)",
+                }
+            )
 
     if newest_email_date:
         after_date_str = newest_email_date.strftime("%Y/%m/%d")
-        queries.append({
-            "query": f"in:anywhere after:{after_date_str}",
-            "description": f"forward sync (new emails after {after_date_str})",
-        })
+        queries.append(
+            {
+                "query": f"in:anywhere after:{after_date_str}",
+                "description": f"forward sync (new emails after {after_date_str})",
+            }
+        )
 
     if oldest_email_date:
         before_date_str = oldest_email_date.strftime("%Y/%m/%d")
-        queries.append({
-            "query": f"in:anywhere before:{before_date_str}",
-            "description": f"historical backfill (old emails before {before_date_str})",
-        })
+        queries.append(
+            {
+                "query": f"in:anywhere before:{before_date_str}",
+                "description": f"historical backfill (old emails before {before_date_str})",
+            }
+        )
 
     if not queries:
-        queries.append({
-            "query": "in:anywhere",
-            "description": "initial scan (all emails from all labels)",
-        })
+        queries.append(
+            {
+                "query": "in:anywhere",
+                "description": "initial scan (all emails from all labels)",
+            }
+        )
 
     return queries
 
 
-def _create_email_objects(
-    email_dicts: list[dict], user_id: str, account_id: Any
-) -> list[Email]:
+def _create_email_objects(email_dicts: list[dict], user_id: str, account_id: Any) -> list[Email]:
     """Create Email ORM objects from Gmail API dicts."""
     emails = []
     for d in email_dicts:
-        emails.append(Email(
-            id=uuid.uuid4(),
-            user_id=uuid.UUID(user_id),
-            account_id=account_id,
-            gmail_message_id=d["gmail_message_id"],
-            gmail_thread_id=d.get("gmail_thread_id"),
-            subject=d.get("subject", ""),
-            sender_email=d.get("sender_email", ""),
-            sender_name=d.get("sender_name"),
-            recipient_emails=d.get("recipient_emails", ""),
-            date=d.get("date", datetime.utcnow()),
-            summary=d.get("snippet", "")[:SUMMARY_MAX_LENGTH],
-            body=d.get("body"),
-            has_attachments=d.get("has_attachments", False),
-            attachment_count=d.get("attachment_count", 0),
-        ))
+        emails.append(
+            Email(
+                id=uuid.uuid4(),
+                user_id=uuid.UUID(user_id),
+                account_id=account_id,
+                gmail_message_id=d["gmail_message_id"],
+                gmail_thread_id=d.get("gmail_thread_id"),
+                subject=d.get("subject", ""),
+                sender_email=d.get("sender_email", ""),
+                sender_name=d.get("sender_name"),
+                recipient_emails=d.get("recipient_emails", ""),
+                date=d.get("date", datetime.utcnow()),
+                summary=d.get("snippet", "")[:SUMMARY_MAX_LENGTH],
+                body=d.get("body"),
+                has_attachments=d.get("has_attachments", False),
+                attachment_count=d.get("attachment_count", 0),
+            )
+        )
     return emails
 
 
@@ -233,7 +258,8 @@ def _insert_email_batch(db: Session, emails: list[Email], correlation_id: str) -
         db.commit()
         logger.info(
             "[%s] Inserted %d emails (duplicates automatically skipped)",
-            correlation_id, len(email_dicts),
+            correlation_id,
+            len(email_dicts),
         )
     except Exception as e:
         logger.error("[%s] Error inserting emails: %s", correlation_id, e, exc_info=True)

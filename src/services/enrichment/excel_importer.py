@@ -144,7 +144,7 @@ def _clean_cell_value(value) -> str | None:
     if isinstance(value, date):
         return value.isoformat()
 
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return str(value)
 
     text = str(value).strip()
@@ -164,9 +164,7 @@ def _match_header(header: str, candidates: list[str]) -> bool:
     return any(c in h for c in candidates)
 
 
-def _build_column_mapping(
-    headers: list[str], tab_config: dict[str, list[str]]
-) -> dict[int, str]:
+def _build_column_mapping(headers: list[str], tab_config: dict[str, list[str]]) -> dict[int, str]:
     """
     Map column indices to canonical field names based on tab-specific config.
     Returns {col_index: canonical_field_name}.

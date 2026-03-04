@@ -26,9 +26,7 @@ class DraftSuggestion(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "draft_suggestions"
-    __table_args__ = (
-        UniqueConstraint("news_item_id", "contact_id", name="uq_draft_news_contact"),
-    )
+    __table_args__ = (UniqueConstraint("news_item_id", "contact_id", name="uq_draft_news_contact"),)
 
     # Foreign Keys
     user_id: Mapped[UUID] = mapped_column(
@@ -62,18 +60,17 @@ class DraftSuggestion(Base, UUIDMixin, TimestampMixin):
 
     # Status
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending", index=True,
+        String(20),
+        nullable=False,
+        default="pending",
+        index=True,
         comment="pending, edited, sent, dismissed, snoozed",
     )
 
-    snoozed_until: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    snoozed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Generation metadata
-    generated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     model_used: Mapped[str | None] = mapped_column(
         String(100), nullable=True, comment="Claude model used for generation"

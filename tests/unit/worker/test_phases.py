@@ -9,12 +9,9 @@ Covers:
 
 import uuid
 from datetime import datetime
-from unittest.mock import MagicMock, call, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from src.worker.phases.email_sync import _build_sync_queries, _create_email_objects
-
 
 # ---------------------------------------------------------------------------
 # Helpers / shared fixtures
@@ -93,7 +90,7 @@ class TestBuildSyncQueries:
         assert len(queries) == 6
 
         query_strings = [q["query"] for q in queries]
-        descriptions = [q["description"] for q in queries]
+        [q["description"] for q in queries]
 
         # Gap-fill queries for all four category labels
         for category in ["PROMOTIONS", "SOCIAL", "FORUMS", "UPDATES"]:

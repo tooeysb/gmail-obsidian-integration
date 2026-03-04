@@ -6,8 +6,6 @@ Tests pure Python logic (normalization, matching, parsing) without DB.
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
-
 from src.services.enrichment.company_resolver import CompanyResolver
 
 

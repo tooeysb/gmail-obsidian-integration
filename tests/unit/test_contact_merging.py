@@ -11,8 +11,8 @@ Tests cover:
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, Mock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -53,7 +53,7 @@ class TestMergeContactsSameEmail:
                 "phone": "+1234567890",
                 "account_source": "procore-main",
                 "email_count": 10,
-                "last_contact_at": datetime(2024, 1, 15, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 15, tzinfo=UTC),
             },
             {
                 "email": "john.doe@example.com",
@@ -61,7 +61,7 @@ class TestMergeContactsSameEmail:
                 "phone": "+1234567890",
                 "account_source": "personal",
                 "email_count": 5,
-                "last_contact_at": datetime(2024, 1, 20, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 20, tzinfo=UTC),
             },
         ]
 
@@ -74,11 +74,9 @@ class TestMergeContactsSameEmail:
             phone="+1234567890",
             account_sources=["procore-main", "personal"],
             email_count=15,
-            last_contact_at=datetime(2024, 1, 20, tzinfo=timezone.utc),
+            last_contact_at=datetime(2024, 1, 20, tzinfo=UTC),
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -125,9 +123,7 @@ class TestMergeContactsSameEmail:
             account_sources=["procore-main", "procore-private", "personal"],
             email_count=50,
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -161,9 +157,7 @@ class TestMergeContactsSameEmail:
             account_sources=["procore-main"],  # Only one entry
             email_count=8,
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -183,13 +177,13 @@ class TestMergeContactsDifferentNames:
                 "email": "john@example.com",
                 "name": "John D",
                 "account_source": "procore-main",
-                "last_contact_at": datetime(2024, 1, 10, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 10, tzinfo=UTC),
             },
             {
                 "email": "john@example.com",
                 "name": "John Doe",  # More recent, should be used
                 "account_source": "personal",
-                "last_contact_at": datetime(2024, 1, 20, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 20, tzinfo=UTC),
             },
         ]
 
@@ -200,9 +194,7 @@ class TestMergeContactsDifferentNames:
             name="John Doe",
             account_sources=["procore-main", "personal"],
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -218,13 +210,13 @@ class TestMergeContactsDifferentNames:
                 "email": "jane@example.com",
                 "name": "",  # Empty
                 "account_source": "procore-main",
-                "last_contact_at": datetime(2024, 1, 20, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 20, tzinfo=UTC),
             },
             {
                 "email": "jane@example.com",
                 "name": "Jane Smith",  # Should be used
                 "account_source": "personal",
-                "last_contact_at": datetime(2024, 1, 10, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 10, tzinfo=UTC),
             },
         ]
 
@@ -235,9 +227,7 @@ class TestMergeContactsDifferentNames:
             name="Jane Smith",
             account_sources=["procore-main", "personal"],
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -273,9 +263,7 @@ class TestMergeContactsMissingData:
             account_sources=["procore-main", "personal"],
             email_count=15,
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -308,9 +296,7 @@ class TestMergeContactsMissingData:
             phone=None,
             account_sources=["procore-main", "personal"],
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -344,9 +330,7 @@ class TestMergeContactsMissingData:
             phone="+1234567890",
             account_sources=["procore-main", "personal"],
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -380,9 +364,7 @@ class TestMergeContactsMissingData:
             account_sources=["procore-main", "personal"],
             email_count=10,  # Only counts the first one
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -425,9 +407,7 @@ class TestMergeContactsEdgeCases:
             name="Jane",
             account_sources=["personal"],
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -459,9 +439,7 @@ class TestMergeContactsEdgeCases:
             name="John",
             account_sources=["procore-main", "personal"],
         )
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [
-            mock_contact
-        ]
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_contact]
 
         result = merge_contacts_by_email(contacts, user_id, mock_db_session)
 
@@ -526,11 +504,11 @@ class TestHelperFunctions:
         contacts = [
             {
                 "name": "Old Name",
-                "last_contact_at": datetime(2024, 1, 1, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 1, tzinfo=UTC),
             },
             {
                 "name": "New Name",
-                "last_contact_at": datetime(2024, 1, 15, tzinfo=timezone.utc),
+                "last_contact_at": datetime(2024, 1, 15, tzinfo=UTC),
             },
         ]
 
@@ -541,7 +519,7 @@ class TestHelperFunctions:
         """Test _resolve_name handles missing timestamps."""
         contacts = [
             {"name": "Name 1"},  # No timestamp
-            {"name": "Name 2", "last_contact_at": datetime(2024, 1, 1, tzinfo=timezone.utc)},
+            {"name": "Name 2", "last_contact_at": datetime(2024, 1, 1, tzinfo=UTC)},
         ]
 
         result = _resolve_name(contacts)
@@ -561,9 +539,9 @@ class TestHelperFunctions:
 
     def test_resolve_last_contact_finds_max(self) -> None:
         """Test _resolve_last_contact finds most recent timestamp."""
-        time1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        time2 = datetime(2024, 1, 15, tzinfo=timezone.utc)
-        time3 = datetime(2024, 1, 10, tzinfo=timezone.utc)
+        time1 = datetime(2024, 1, 1, tzinfo=UTC)
+        time2 = datetime(2024, 1, 15, tzinfo=UTC)
+        time3 = datetime(2024, 1, 10, tzinfo=UTC)
 
         contacts = [
             {"last_contact_at": time1},
@@ -576,7 +554,7 @@ class TestHelperFunctions:
 
     def test_merge_contact_group_integration(self) -> None:
         """Test _merge_contact_group with complete contact data."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         contacts = [
             {
                 "name": "John Doe",

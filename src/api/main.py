@@ -144,7 +144,7 @@ async def sso_callback(token: str = Query(..., description="SSO JWT from Portal"
 
 
 # Include routers
-from src.api.routers import auth, crm, dashboard, draft, outreach, scan
+from src.api.routers import auth, crm, dashboard, draft, outreach, scan  # noqa: E402
 
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(scan.router, prefix="/scan", tags=["scanning"])

@@ -6,7 +6,7 @@ common URL patterns against their domain.
 """
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from sqlalchemy import or_
@@ -103,7 +103,7 @@ class NewsPageDiscoveryService:
                     logger.info("Discovered news page for %s: %s", company.name, url)
                     if not dry_run:
                         company.news_page_url = url
-                        company.news_page_discovered_at = datetime.now(timezone.utc)
+                        company.news_page_discovered_at = datetime.now(UTC)
                     return url
             except httpx.HTTPError:
                 continue
@@ -112,9 +112,7 @@ class NewsPageDiscoveryService:
         logger.debug("No news page found for %s (%s)", company.name, company.domain)
         return None
 
-    def discover_all(
-        self, user_id: str, limit: int | None = None, dry_run: bool = False
-    ) -> dict:
+    def discover_all(self, user_id: str, limit: int | None = None, dry_run: bool = False) -> dict:
         """
         Run discovery for all companies without a news_page_url.
 

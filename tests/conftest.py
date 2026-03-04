@@ -3,9 +3,9 @@ Pytest configuration and shared fixtures.
 """
 
 import asyncio
-from typing import Generator
+from collections.abc import Generator
 from unittest.mock import MagicMock
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -103,6 +103,7 @@ def test_client(mock_db: MagicMock) -> Generator[TestClient, None, None]:
     The dependency override uses a generator to match FastAPI's expected signature
     for yield-based dependencies.
     """
+
     def override_get_sync_db():
         yield mock_db
 

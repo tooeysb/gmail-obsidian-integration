@@ -5,7 +5,17 @@ Company model for CRM enrichment data.
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ARRAY, Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    ARRAY,
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -112,12 +122,16 @@ class Company(Base, UUIDMixin, TimestampMixin):
     )
 
     news_scrape_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default="true",
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
         comment="Whether to include in daily news scrape",
     )
 
     news_search_override: Mapped[str | None] = mapped_column(
-        String(255), nullable=True,
+        String(255),
+        nullable=True,
         comment="Override search term for Google News (e.g. 'DPR Construction' for 'DPR')",
     )
 

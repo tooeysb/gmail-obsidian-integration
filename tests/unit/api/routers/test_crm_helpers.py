@@ -3,11 +3,9 @@ Unit tests for CRM router helper functions.
 Tests serialization and utility functions without requiring a database.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
-
-import pytest
 
 from src.api.routers.crm import _serialize_contact, _serialize_dt
 
@@ -24,7 +22,7 @@ class TestSerializeDt:
         assert result == "2024-01-15T10:30:00"
 
     def test_aware_datetime(self):
-        dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         result = _serialize_dt(dt)
         assert "2024-01-15" in result
         assert "10:30:00" in result
@@ -48,14 +46,14 @@ class TestSerializeContact:
             "tags": ["vip", "construction"],
             "relationship_context": "Key account contact",
             "company_id": uuid4(),
-            "last_contact_at": datetime(2024, 1, 15, tzinfo=timezone.utc),
+            "last_contact_at": datetime(2024, 1, 15, tzinfo=UTC),
             "notes": "Test notes",
             "personal_email": "john.personal@gmail.com",
             "account_sources": ["procore-main"],
             "salesforce_id": "SF001",
             "address": "123 Main St",
-            "created_at": datetime(2023, 1, 1, tzinfo=timezone.utc),
-            "updated_at": datetime(2024, 1, 15, tzinfo=timezone.utc),
+            "created_at": datetime(2023, 1, 1, tzinfo=UTC),
+            "updated_at": datetime(2024, 1, 15, tzinfo=UTC),
         }
         defaults.update(overrides)
         for k, v in defaults.items():
@@ -100,15 +98,13 @@ class TestSerializeContact:
         assert result["account_sources"] == []
 
     def test_datetime_serialized(self):
-        dt = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
         contact = self._make_contact(last_contact_at=dt)
         result = _serialize_contact(contact, None)
         assert "2024-06-15" in result["last_contact_at"]
 
     def test_none_datetimes(self):
-        contact = self._make_contact(
-            last_contact_at=None, created_at=None, updated_at=None
-        )
+        contact = self._make_contact(last_contact_at=None, created_at=None, updated_at=None)
         result = _serialize_contact(contact, None)
         assert result["last_contact_at"] is None
         assert result["created_at"] is None

@@ -120,7 +120,10 @@ class NewsPageParser:
         ]
 
         for cls in news_classes:
-            items = soup.find_all(class_=lambda c: c and cls in str(c).lower(), limit=30)
+            target_cls = cls
+            items = soup.find_all(
+                class_=lambda c, t=target_cls: c and t in str(c).lower(), limit=30
+            )
             if not items:
                 continue
 

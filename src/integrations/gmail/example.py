@@ -5,7 +5,6 @@ This script demonstrates how to use the GmailClient to fetch contacts and emails
 """
 
 import json
-from datetime import datetime
 
 from src.core.config import settings
 from src.integrations.gmail.client import GmailClient

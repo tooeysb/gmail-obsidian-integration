@@ -10,10 +10,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.core.logging import get_logger
 from src.models.contact import Contact
 from src.models.contact_enrichment import ContactEnrichment
-
-from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -95,9 +94,7 @@ class ContactMatcher:
             if not rows:
                 continue
 
-            tab_stats = self._process_tab(
-                tab_name, rows, company_map, existing_contacts
-            )
+            tab_stats = self._process_tab(tab_name, rows, company_map, existing_contacts)
             stats.matched += tab_stats["matched"]
             stats.created += tab_stats["created"]
             stats.skipped += tab_stats["skipped"]
@@ -170,9 +167,7 @@ class ContactMatcher:
             contact = existing_contacts.get(email_normalized)
             if contact:
                 # Update existing contact with enrichment data
-                self._update_contact(
-                    contact, name, company_id, contact_type, tags_for_tab, row
-                )
+                self._update_contact(contact, name, company_id, contact_type, tags_for_tab, row)
                 match_status = "matched"
                 tab_stats["matched"] += 1
             else:

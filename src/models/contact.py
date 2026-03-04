@@ -79,9 +79,7 @@ class Contact(Base, UUIDMixin, TimestampMixin):
     )
 
     # CRM Enrichment Fields
-    title: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, comment="Job title"
-    )
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="Job title")
 
     personal_email: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="Personal email address (separate from work email)"
@@ -107,9 +105,7 @@ class Contact(Base, UUIDMixin, TimestampMixin):
         String(100), nullable=True, comment="Salesforce Contact ID"
     )
 
-    address: Mapped[str | None] = mapped_column(
-        Text, nullable=True, comment="Mailing address"
-    )
+    address: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Mailing address")
 
     source_data: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, comment="Raw imported CRM data for reference"

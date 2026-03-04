@@ -5,7 +5,6 @@ Generates Obsidian markdown notes for contacts and emails with YAML frontmatter.
 
 import re
 from collections import Counter
-from datetime import datetime
 from typing import Any
 
 from src.models.contact import Contact
@@ -27,7 +26,7 @@ class NoteGenerator:
             Markdown content for contact note
         """
         # Build YAML frontmatter
-        frontmatter = self._build_contact_frontmatter(contact, emails)
+        self._build_contact_frontmatter(contact, emails)
 
         # Build email count per account
         account_counts = Counter(email.account.account_label for email in emails)
@@ -40,7 +39,7 @@ class NoteGenerator:
         # Build markdown content
         lines = [
             "---",
-            f"type: contact",
+            "type: contact",
             f"name: {self._escape_yaml(contact.name or contact.email)}",
             f"email: {contact.email}",
             f"accounts: [{', '.join(repr(acc) for acc in sorted(contact.account_sources))}]",
@@ -49,7 +48,9 @@ class NoteGenerator:
 
         # Add per-account email counts
         for account_label in sorted(account_counts.keys()):
-            lines.append(f"email_count_{self._sanitize_key(account_label)}: {account_counts[account_label]}")
+            lines.append(
+                f"email_count_{self._sanitize_key(account_label)}: {account_counts[account_label]}"
+            )
 
         # Add last contact date
         if contact.last_contact_at:
@@ -111,8 +112,10 @@ class NoteGenerator:
         lines.append("  date as Date,")
         lines.append("  subject as Subject,")
         lines.append("  account as Account")
-        lines.append("FROM \"Emails\"")
-        lines.append(f'WHERE contains(from, "[[{self._sanitize_filename(contact.name or contact.email)}]]")')
+        lines.append('FROM "Emails"')
+        lines.append(
+            f'WHERE contains(from, "[[{self._sanitize_filename(contact.name or contact.email)}]]")'
+        )
         lines.append("SORT date DESC")
         lines.append("```")
 
@@ -136,7 +139,7 @@ class NoteGenerator:
         # Build YAML frontmatter
         lines = [
             "---",
-            f"type: email",
+            "type: email",
             f"date: {email.date.isoformat()}",
             f"year: {year}",
             f"month: {month}",
@@ -166,7 +169,9 @@ class NoteGenerator:
         # Add metadata section
         lines.append("## Metadata")
         lines.append("")
-        lines.append(f"- **From**: [[{self._sanitize_filename(email.sender_name or email.sender_email)}]]")
+        lines.append(
+            f"- **From**: [[{self._sanitize_filename(email.sender_name or email.sender_email)}]]"
+        )
         lines.append(f"- **To**: {email.recipient_emails}")
         lines.append(f"- **Date**: {email.date.strftime('%Y-%m-%d %H:%M')}")
         lines.append(f"- **Account**: {email.account.account_label}")
@@ -264,9 +269,9 @@ class NoteGenerator:
             Sanitized name safe for filenames
         """
         # Remove or replace problematic characters
-        name = re.sub(r'[<>:"/\\|?*]', '', name)
+        name = re.sub(r'[<>:"/\\|?*]', "", name)
         # Replace spaces with underscores
-        name = name.replace(' ', '_')
+        name = name.replace(" ", "_")
         # Limit length
         return name[:100]
 
@@ -283,10 +288,10 @@ class NoteGenerator:
         # Convert to lowercase
         text = text.lower()
         # Replace spaces and special chars with hyphens
-        text = re.sub(r'[^\w\s-]', '', text)
-        text = re.sub(r'[-\s]+', '-', text)
+        text = re.sub(r"[^\w\s-]", "", text)
+        text = re.sub(r"[-\s]+", "-", text)
         # Limit length
-        return text[:50].strip('-')
+        return text[:50].strip("-")
 
     def _sanitize_key(self, key: str) -> str:
         """
@@ -299,7 +304,7 @@ class NoteGenerator:
             Sanitized key
         """
         # Replace hyphens and spaces with underscores
-        return key.replace('-', '_').replace(' ', '_')
+        return key.replace("-", "_").replace(" ", "_")
 
     def _escape_yaml(self, value: str | None) -> str:
         """
@@ -315,7 +320,10 @@ class NoteGenerator:
             return ""
 
         # If value contains special YAML characters, quote it
-        if any(char in value for char in [':', '#', '[', ']', '{', '}', ',', '&', '*', '!', '|', '>', '@', '`']):
+        if any(
+            char in value
+            for char in [":", "#", "[", "]", "{", "}", ",", "&", "*", "!", "|", ">", "@", "`"]
+        ):
             # Escape quotes and wrap in quotes
             escaped = value.replace('"', '\\"')
             return f'"{escaped}"'

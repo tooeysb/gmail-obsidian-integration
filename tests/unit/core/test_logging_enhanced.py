@@ -8,9 +8,6 @@ get_logger factory.
 
 import json
 import logging
-import os
-
-import pytest
 
 from src.core.logging import (
     JsonFormatter,
@@ -50,9 +47,9 @@ class TestRedactingFormatterRequestId:
         output = formatter.format(record)
 
         # The request_id placeholder must have been resolved — brackets present
-        assert "[" in output and "]" in output, (
-            "Expected [request_id] bracket syntax in formatted output"
-        )
+        assert (
+            "[" in output and "]" in output
+        ), "Expected [request_id] bracket syntax in formatted output"
         # Default when no middleware context is active should be '-'
         assert "[-]" in output or "[" in output  # ID is present in some form
 
@@ -63,9 +60,7 @@ class TestRedactingFormatterRequestId:
         )
         record = _make_record("no context")
         output = formatter.format(record)
-        assert "[-]" in output, (
-            f"Expected '[-]' as default request_id, got: {output!r}"
-        )
+        assert "[-]" in output, f"Expected '[-]' as default request_id, got: {output!r}"
 
 
 class TestJsonFormatter:
@@ -119,10 +114,8 @@ class TestJsonFormatter:
         formatter = JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S")
         record = _make_record("single line check")
         raw = formatter.format(record)
-        lines = [l for l in raw.splitlines() if l.strip()]
-        assert len(lines) == 1, (
-            f"Expected 1 line, got {len(lines)}: {raw!r}"
-        )
+        lines = [line for line in raw.splitlines() if line.strip()]
+        assert len(lines) == 1, f"Expected 1 line, got {len(lines)}: {raw!r}"
 
     def test_json_formatter_redacts_sensitive_data(self):
         """Sensitive values must be redacted inside the JSON 'message' field."""
@@ -130,9 +123,9 @@ class TestJsonFormatter:
         parsed = self._format(msg=sensitive_msg)
 
         # The token value must be gone
-        assert "super_secret_token_abc123" not in parsed["message"], (
-            "Token value should be redacted in JSON output"
-        )
+        assert (
+            "super_secret_token_abc123" not in parsed["message"]
+        ), "Token value should be redacted in JSON output"
         assert "[REDACTED]" in parsed["message"]
         # Non-sensitive data must survive
         assert "test@example.com" in parsed["message"]
@@ -140,9 +133,7 @@ class TestJsonFormatter:
     def test_json_formatter_request_id_defaults_to_dash(self):
         """Without a request context, request_id must be '-'."""
         parsed = self._format()
-        assert parsed["request_id"] == "-", (
-            f"Expected '-', got '{parsed['request_id']}'"
-        )
+        assert parsed["request_id"] == "-", f"Expected '-', got '{parsed['request_id']}'"
 
     def test_json_formatter_includes_logger_name(self):
         """JsonFormatter output must include a 'logger' field with the record's name."""
@@ -158,6 +149,7 @@ class TestJsonFormatter:
             raise ValueError("boom")
         except ValueError:
             import sys
+
             exc_info = sys.exc_info()
 
         record = logging.LogRecord(
@@ -181,17 +173,15 @@ class TestGetLogger:
         """get_logger must return a Logger that already has at least one handler."""
         logger = get_logger("test.enhanced.factory")
         assert isinstance(logger, logging.Logger)
-        assert len(logger.handlers) > 0, (
-            "Logger returned by get_logger must have at least one handler"
-        )
+        assert (
+            len(logger.handlers) > 0
+        ), "Logger returned by get_logger must have at least one handler"
 
     def test_get_logger_handler_has_formatter(self):
         """Each handler attached by get_logger must carry a formatter."""
         logger = get_logger("test.enhanced.formatter_check")
         for handler in logger.handlers:
-            assert handler.formatter is not None, (
-                f"Handler {handler!r} is missing a formatter"
-            )
+            assert handler.formatter is not None, f"Handler {handler!r} is missing a formatter"
 
     def test_get_logger_default_level_is_info(self):
         """Loggers created by get_logger must default to INFO level."""
@@ -204,9 +194,9 @@ class TestGetLogger:
         logger1 = get_logger(name)
         count_after_first = len(logger1.handlers)
         logger2 = get_logger(name)
-        assert len(logger2.handlers) == count_after_first, (
-            "Repeated get_logger calls must not double-attach handlers"
-        )
+        assert (
+            len(logger2.handlers) == count_after_first
+        ), "Repeated get_logger calls must not double-attach handlers"
         assert logger1 is logger2
 
 

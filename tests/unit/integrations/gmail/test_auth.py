@@ -5,12 +5,11 @@ Tests credential encryption, token refresh, and OAuth2 flow.
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from google.oauth2.credentials import Credentials
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.integrations.gmail.auth import GmailAuthService
@@ -183,9 +182,7 @@ class TestHandleCallback:
     """Test handle_callback method."""
 
     @pytest.mark.asyncio
-    async def test_handle_callback_success(
-        self, auth_service, mock_db_session, test_user
-    ):
+    async def test_handle_callback_success(self, auth_service, mock_db_session, test_user):
         """Test successful OAuth2 callback handling."""
         state_token = f"random_token_123.{test_user.id}.procore-main"
         code = "test-authorization-code"
@@ -211,9 +208,7 @@ class TestHandleCallback:
             mock_flow_class.from_client_config.return_value = mock_flow
 
             # Mock credential encryption
-            auth_service._encrypt_credentials = AsyncMock(
-                return_value={"encrypted": "base64_data"}
-            )
+            auth_service._encrypt_credentials = AsyncMock(return_value={"encrypted": "base64_data"})
 
             result = await auth_service.handle_callback(code, state_token)
 
@@ -236,9 +231,7 @@ class TestHandleCallback:
             await auth_service.handle_callback(code, invalid_state)
 
     @pytest.mark.asyncio
-    async def test_handle_callback_user_not_found(
-        self, auth_service, mock_db_session, test_user
-    ):
+    async def test_handle_callback_user_not_found(self, auth_service, mock_db_session, test_user):
         """Test callback when user doesn't exist."""
         state_token = f"random_token_123.{test_user.id}.procore-main"
         code = "test-authorization-code"
@@ -353,7 +346,7 @@ class TestGetCredentials:
         auth_service._update_credentials = AsyncMock()
 
         with patch.object(Credentials, "refresh") as mock_refresh:
-            credentials = await auth_service.get_credentials(str(test_gmail_account.id))
+            await auth_service.get_credentials(str(test_gmail_account.id))
 
             # Verify refresh was called (expiry is now restored from decrypted creds)
             mock_refresh.assert_called_once()
@@ -383,9 +376,7 @@ class TestRevokeCredentials:
         mock_db_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_revoke_credentials_account_not_found(
-        self, auth_service, mock_db_session
-    ):
+    async def test_revoke_credentials_account_not_found(self, auth_service, mock_db_session):
         """Test revocation when account doesn't exist."""
         account_id = str(uuid4())
 
@@ -402,9 +393,7 @@ class TestCredentialEncryption:
     """Test credential encryption and decryption."""
 
     @pytest.mark.asyncio
-    async def test_encrypt_decrypt_credentials_roundtrip(
-        self, auth_service, mock_db_session
-    ):
+    async def test_encrypt_decrypt_credentials_roundtrip(self, auth_service, mock_db_session):
         """Test encrypting and decrypting credentials produces original data."""
         original_creds = {
             "token": "test-access-token",

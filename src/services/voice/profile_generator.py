@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from src.core.config import settings
 from src.core.logging import get_logger
 from src.core.utils import strip_markdown_codeblocks
-from src.models import Email, EmailTag, GmailAccount
+from src.models import Email, GmailAccount
 from src.models.voice_profile import VoiceProfile
 from src.services.voice.draft_prompt import (
     VOICE_ANALYSIS_SYSTEM_PROMPT,
@@ -83,9 +83,7 @@ class VoiceProfileGenerator:
         # Save or update profile
         profile = self._save_profile(user_id, profile_name, profile_data, len(sent_emails))
 
-        logger.info(
-            "Voice profile '%s' generated with %s samples", profile_name, len(sent_emails)
-        )
+        logger.info("Voice profile '%s' generated with %s samples", profile_name, len(sent_emails))
 
         return profile
 

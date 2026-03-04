@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 from celery import group
 from sqlalchemy import func, text, update
 
-from src.core.config import settings
 from src.core.database import WorkerSessionLocal as SessionLocal
 from src.core.logging import get_logger
 from src.integrations.gmail.client import GmailClient
@@ -179,9 +178,7 @@ def backfill_worker(account_id: str):
         )
         db.commit()
 
-        logger.info(
-            "[%s] [%s] Claimed %s emails", task_id, account.account_email, len(gmail_ids)
-        )
+        logger.info("[%s] [%s] Claimed %s emails", task_id, account.account_email, len(gmail_ids))
 
         # Save creds and close DB before long Gmail fetch
         creds = json.loads(account.credentials)
@@ -222,13 +219,18 @@ def backfill_worker(account_id: str):
                     params[f"gid_{i}"] = gid
                     params[f"body_{i}"] = body_text
 
-                db.execute(text(f"""
+                db.execute(
+                    text(
+                        f"""
                     UPDATE emails e
                     SET body = v.body, updated_at = NOW()
                     FROM (VALUES {placeholders}) AS v(gmail_message_id, body)
                     WHERE e.gmail_message_id = v.gmail_message_id
                       AND e.account_id = CAST(:account_id AS uuid)
-                """), params)
+                """
+                    ),
+                    params,
+                )
                 updated = len(values_list)
 
             # Distinguish between successfully fetched (no body) vs failed (429, etc.)
@@ -237,7 +239,8 @@ def backfill_worker(account_id: str):
             # Emails that were fetched but had no body content (image-only, etc.)
             # Mark as empty string so they're not re-fetched
             no_body_ids = [
-                eid for eid, gid in zip(email_ids, gmail_ids)
+                eid
+                for eid, gid in zip(email_ids, gmail_ids, strict=False)
                 if gid in fetched_gmail_ids and gid not in body_map
             ]
             if no_body_ids:
@@ -250,15 +253,12 @@ def backfill_worker(account_id: str):
             # Emails that FAILED to fetch (429, timeout, etc.)
             # Reset sentinel to NULL so they get retried
             failed_ids = [
-                eid for eid, gid in zip(email_ids, gmail_ids)
+                eid
+                for eid, gid in zip(email_ids, gmail_ids, strict=False)
                 if gid not in fetched_gmail_ids
             ]
             if failed_ids:
-                db.execute(
-                    update(Email)
-                    .where(Email.id.in_(failed_ids))
-                    .values(body=None)
-                )
+                db.execute(update(Email).where(Email.id.in_(failed_ids)).values(body=None))
 
             db.commit()
 
@@ -275,11 +275,7 @@ def backfill_worker(account_id: str):
             logger.error("[%s] [%s] Gmail fetch error: %s", task_id, account_email, e)
             # Clear sentinel so these get retried
             db = SessionLocal()
-            db.execute(
-                update(Email)
-                .where(Email.id.in_(email_ids))
-                .values(body=None)
-            )
+            db.execute(update(Email).where(Email.id.in_(email_ids)).values(body=None))
             db.commit()
             raise
 

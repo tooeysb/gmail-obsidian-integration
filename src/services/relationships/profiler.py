@@ -91,7 +91,7 @@ def profile_contact(
                 break
 
         if not text_content:
-            logger.error("No text in Claude response for %s", contact_info['contact_email'])
+            logger.error("No text in Claude response for %s", contact_info["contact_email"])
             return _empty_profile()
 
         text_content = strip_markdown_codeblocks(text_content)
@@ -102,10 +102,10 @@ def profile_contact(
         return _validate_profile(profile)
 
     except json.JSONDecodeError as e:
-        logger.error("JSON parse error for %s: %s", contact_info['contact_email'], e, exc_info=True)
+        logger.error("JSON parse error for %s: %s", contact_info["contact_email"], e, exc_info=True)
         return _empty_profile()
     except Exception as e:
-        logger.error("Claude API error for %s: %s", contact_info['contact_email'], e, exc_info=True)
+        logger.error("Claude API error for %s: %s", contact_info["contact_email"], e, exc_info=True)
         return _empty_profile()
 
 
@@ -154,7 +154,9 @@ def profile_contacts_batch(
         if existing and existing.profiled_at:
             skipped += 1
             if (idx + 1) % 50 == 0:
-                logger.info("Progress: %s/%s (skipped %s already profiled)", idx + 1, total, skipped)
+                logger.info(
+                    "Progress: %s/%s (skipped %s already profiled)", idx + 1, total, skipped
+                )
             continue
 
         # Sample emails
@@ -205,14 +207,16 @@ def profile_contacts_batch(
             db.commit()
             logger.info(
                 "Progress: %s/%s contacts processed (%s profiled, %s skipped)",
-                idx + 1, total, profiled, skipped
+                idx + 1,
+                total,
+                profiled,
+                skipped,
             )
 
     # Final commit
     db.commit()
     logger.info(
-        "Profiling complete: %s profiled, %s skipped out of %s contacts",
-        profiled, skipped, total
+        "Profiling complete: %s profiled, %s skipped out of %s contacts", profiled, skipped, total
     )
     return profiled
 

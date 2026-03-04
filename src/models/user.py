@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from src.models.account import GmailAccount
     from src.models.company import Company
     from src.models.contact import Contact
-    from src.models.contact_enrichment import ContactEnrichment
     from src.models.email import Email
     from src.models.job import SyncJob
     from src.models.relationship_profile import RelationshipProfile

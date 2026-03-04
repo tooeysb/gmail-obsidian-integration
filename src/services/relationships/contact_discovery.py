@@ -9,7 +9,7 @@ import re
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
@@ -45,9 +45,7 @@ NOREPLY_PATTERNS = [
 _NOREPLY_COMPILED = [re.compile(p, re.IGNORECASE) for p in NOREPLY_PATTERNS]
 
 # Derive user email addresses from settings instead of hardcoding.
-USER_EMAILS: set[str] = {
-    acct["email"] for acct in settings.get_gmail_accounts()
-}
+USER_EMAILS: set[str] = {acct["email"] for acct in settings.get_gmail_accounts()}
 
 
 def _is_noreply(email: str) -> bool:
@@ -217,9 +215,7 @@ def discover_contacts(user_id: UUID, db: Session) -> list[dict[str, Any]]:
     return contacts
 
 
-def _bulk_get_names(
-    user_id: UUID, contact_emails: set[str], db: Session
-) -> dict[str, str]:
+def _bulk_get_names(user_id: UUID, contact_emails: set[str], db: Session) -> dict[str, str]:
     """Bulk fetch most common display name per contact. Single query."""
     if not contact_emails:
         return {}
@@ -251,9 +247,7 @@ def _bulk_get_names(
     return {email: name for email, (name, _) in best.items()}
 
 
-def _bulk_get_thread_stats(
-    user_id: UUID, contact_emails: set[str], db: Session
-) -> dict[str, dict]:
+def _bulk_get_thread_stats(user_id: UUID, contact_emails: set[str], db: Session) -> dict[str, dict]:
     """
     Bulk fetch thread count and date range per contact.
 

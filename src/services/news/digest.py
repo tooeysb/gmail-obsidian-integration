@@ -6,13 +6,12 @@ from the company news intelligence pipeline.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from src.core.logging import get_logger
-from src.models.company import Company
 from src.models.company_news import CompanyNewsItem
 from src.models.draft_suggestion import DraftSuggestion
 
@@ -96,7 +95,7 @@ class DigestService:
 
     def build_daily_digest(self, user_id: str) -> DailyDigestData:
         """Build daily digest for articles found in the last 24 hours."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         since = now - timedelta(hours=24)
 
         items = (
@@ -119,7 +118,8 @@ class DigestService:
         # Build ArticleSummary objects once, reuse for top_articles and by_company
         summaries = [self._to_article_summary(i) for i in items]
         scored_pairs = [
-            (s, i) for s, i in zip(summaries, items)
+            (s, i)
+            for s, i in zip(summaries, items, strict=False)
             if i.analysis and i.analysis.get("relevance_score")
         ]
         scored_pairs.sort(key=lambda p: p[1].analysis["relevance_score"], reverse=True)
@@ -155,7 +155,7 @@ class DigestService:
 
     def build_weekly_digest(self, user_id: str) -> WeeklyDigestData:
         """Build weekly rollup for the last 7 days."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         week_start = now - timedelta(days=7)
 
         items = (
@@ -204,6 +204,6 @@ class DigestService:
             .group_by(DraftSuggestion.status)
             .all()
         )
-        data.draft_stats = {status: count for status, count in drafts}
+        data.draft_stats = dict(drafts)
 
         return data

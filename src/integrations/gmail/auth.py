@@ -5,7 +5,7 @@ Handles OAuth2 flow, credential storage/retrieval with encryption, and token ref
 
 import json
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from google.auth.transport.requests import Request
@@ -139,7 +139,7 @@ class GmailAuthService:
             _, user_id, account_label = parts
         except (ValueError, IndexError) as e:
             logger.error("Invalid state token format: %s", e)
-            raise ValueError(f"Invalid state token: {e}")
+            raise ValueError(f"Invalid state token: {e}") from None
 
         # Validate account_label
         if account_label not in self.VALID_LABELS:

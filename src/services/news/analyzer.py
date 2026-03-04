@@ -6,7 +6,7 @@ relevance and suggest outreach angles.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from anthropic import Anthropic
@@ -132,7 +132,7 @@ class NewsAnalysisService:
             analysis = json.loads(response_text)
 
             item.analysis = analysis
-            item.analyzed_at = datetime.now(timezone.utc)
+            item.analyzed_at = datetime.now(UTC)
             item.status = "analyzed"
 
             return analysis

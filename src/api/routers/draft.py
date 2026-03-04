@@ -69,7 +69,7 @@ def compose_draft(
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except Exception:
         logger.error("Draft generation failed", exc_info=True)
-        raise HTTPException(status_code=500, detail="Draft generation failed")
+        raise HTTPException(status_code=500, detail="Draft generation failed") from None

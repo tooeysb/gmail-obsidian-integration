@@ -132,12 +132,8 @@ def sample_emails(
     conflict_emails = (
         base_q.join(EmailTag, EmailTag.email_id == Email.id)
         .filter(
-            (
-                (EmailTag.tag_category == "sentiment") & (EmailTag.tag == "urgent")
-            )
-            | (
-                (EmailTag.tag_category == "sentiment") & (EmailTag.tag == "negative")
-            )
+            ((EmailTag.tag_category == "sentiment") & (EmailTag.tag == "urgent"))
+            | ((EmailTag.tag_category == "sentiment") & (EmailTag.tag == "negative"))
             | (EmailTag.tag_category == "action")
         )
         .order_by(Email.date.desc())

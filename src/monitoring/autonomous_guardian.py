@@ -16,9 +16,7 @@ Run as: python -m src.monitoring.autonomous_guardian
 import asyncio
 import os
 import subprocess
-import time
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime
 
 import httpx
 from sqlalchemy import create_engine, func
@@ -52,8 +50,8 @@ class ScanGuardian:
         self,
         event_type: str,
         description: str,
-        job_id: Optional[str] = None,
-        metadata: Optional[dict] = None
+        job_id: str | None = None,
+        metadata: dict | None = None,
     ):
         """Log guardian event to database for visibility."""
         db = self.SessionLocal()
@@ -172,7 +170,7 @@ class ScanGuardian:
         finally:
             db.close()
 
-    async def start_new_scan(self) -> Optional[str]:
+    async def start_new_scan(self) -> str | None:
         """Start a new scan job via API."""
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -191,7 +189,9 @@ class ScanGuardian:
                     logger.info("Started new scan job: %s", job_id)
                     return job_id
                 else:
-                    logger.error("Failed to start scan: %s - %s", response.status_code, response.text)
+                    logger.error(
+                        "Failed to start scan: %s - %s", response.status_code, response.text
+                    )
                     return None
 
         except Exception as e:
@@ -218,7 +218,7 @@ class ScanGuardian:
                     logger.error(
                         "❌ TOO MANY AUTO-RESTARTS (%s) in short time. "
                         "Pausing auto-fix. Manual intervention needed.",
-                        self.restart_count
+                        self.restart_count,
                     )
                     return
             else:
@@ -238,7 +238,7 @@ class ScanGuardian:
             self.log_event(
                 event_type="job_killed",
                 description=f"Auto-killed stuck job: {reason}",
-                job_id=job_id
+                job_id=job_id,
             )
             await asyncio.sleep(2)
 
@@ -259,7 +259,7 @@ class ScanGuardian:
                 event_type="scan_restarted",
                 description=f"Auto-started new scan after fixing: {reason}",
                 job_id=job_id,
-                metadata={"restart_count": self.restart_count}
+                metadata={"restart_count": self.restart_count},
             )
         else:
             logger.error("❌ AUTO-FIX FAILED: Could not start new scan")
@@ -267,7 +267,7 @@ class ScanGuardian:
             # Log error event
             self.log_event(
                 event_type="error",
-                description=f"Failed to start new scan after killing stuck job: {reason}"
+                description=f"Failed to start new scan after killing stuck job: {reason}",
             )
 
     async def monitor_loop(self):
@@ -295,7 +295,7 @@ class ScanGuardian:
                         event_type="stuck_detected",
                         description=reason,
                         job_id=job_id,
-                        metadata={"total_emails": status["total_emails"]}
+                        metadata={"total_emails": status["total_emails"]},
                     )
 
                     # Check worker logs for additional context
@@ -316,13 +316,12 @@ class ScanGuardian:
                             "%s emails processed)",
                             str(job.id)[:8],
                             job.progress_pct,
-                            job.emails_processed
+                            job.emails_processed,
                         )
                     else:
                         logger.info(
-                            "ℹ️  No active scan - "
-                            "%s total emails in database",
-                            status['total_emails']
+                            "ℹ️  No active scan - " "%s total emails in database",
+                            status["total_emails"],
                         )
 
             except Exception as e:

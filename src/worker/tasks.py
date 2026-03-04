@@ -13,6 +13,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
+
+# Database session factory (shared worker engine with connection recycling)
+from src.core.database import WorkerSessionLocal as SessionLocal
 from src.core.logging import get_logger
 from src.integrations.claude.batch_processor import ThemeBatchProcessor
 from src.models import Email, GmailAccount, SyncJob, User
@@ -24,9 +27,6 @@ from src.worker.phases.theme_detection import detect_themes
 from src.worker.phases.vault_generation import generate_vault
 
 logger = get_logger(__name__)
-
-# Database session factory (shared worker engine with connection recycling)
-from src.core.database import WorkerSessionLocal as SessionLocal
 
 
 def get_last_processed_email_date(db: Session, account_id: uuid.UUID) -> datetime | None:
@@ -76,9 +76,7 @@ class CallbackTask(Task):
 
 
 @celery_app.task(bind=True, base=CallbackTask, name="scan_gmail_task")
-def scan_gmail_task(
-    self, user_id: str, account_labels: list[str] | None = None
-) -> dict[str, Any]:
+def scan_gmail_task(self, user_id: str, account_labels: list[str] | None = None) -> dict[str, Any]:
     """
     Main orchestration task for multi-account Gmail scan.
 
@@ -90,7 +88,9 @@ def scan_gmail_task(
     correlation_id = str(uuid.uuid4())
     logger.info(
         "[%s] Starting Gmail scan for user %s, accounts: %s",
-        correlation_id, user_id, account_labels,
+        correlation_id,
+        user_id,
+        account_labels,
     )
 
     if account_labels is None:
@@ -124,7 +124,7 @@ def scan_gmail_task(
             .filter(
                 GmailAccount.user_id == uuid.UUID(user_id),
                 GmailAccount.account_label.in_(account_labels),
-                GmailAccount.is_active == True,
+                GmailAccount.is_active is True,
             )
             .all()
         )
@@ -205,7 +205,10 @@ def scan_gmail_task(
 
         logger.info(
             "[%s] Gmail scan complete for user %s. Processed %d contacts and %d emails.",
-            correlation_id, user_id, len(merged_contacts), len(all_emails),
+            correlation_id,
+            user_id,
+            len(merged_contacts),
+            len(all_emails),
         )
 
         return {

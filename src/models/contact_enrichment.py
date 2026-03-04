@@ -25,9 +25,7 @@ class ContactEnrichment(Base, UUIDMixin, TimestampMixin):
 
     __tablename__ = "contact_enrichments"
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "source_tab", "match_email", name="uq_enrichment_source"
-        ),
+        UniqueConstraint("user_id", "source_tab", "match_email", name="uq_enrichment_source"),
     )
 
     # Foreign Keys

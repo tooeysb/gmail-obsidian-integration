@@ -127,10 +127,5 @@ def format_emails_for_analysis(emails: list[dict]) -> str:
         if len(body) > 2000:
             body = body[:2000] + "\n[...truncated]"
 
-        parts.append(
-            f"### Email {i}\n"
-            f"To: {recipient}\n"
-            f"Subject: {subject}\n"
-            f"\n{body}"
-        )
+        parts.append(f"### Email {i}\n" f"To: {recipient}\n" f"Subject: {subject}\n" f"\n{body}")
     return "\n\n".join(parts)

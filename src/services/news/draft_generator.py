@@ -5,7 +5,7 @@ Matches high-relevance news items to CRM contacts and generates
 personalized email drafts using the existing voice profile system.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -114,7 +114,7 @@ class NewsDraftGeneratorService:
                     context_used=context,
                     tone="professional",
                     status="pending",
-                    generated_at=datetime.now(timezone.utc),
+                    generated_at=datetime.now(UTC),
                     model_used=result.model,
                 )
                 self.db.add(suggestion)

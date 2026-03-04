@@ -7,7 +7,6 @@ and Dataview-powered index dashboards.
 
 import re
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -15,13 +14,12 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
+from src.core.logging import get_logger
 from src.models.company import Company
 from src.models.contact import Contact
-from src.models.email import Email, EmailTag
+from src.models.email import Email
 from src.models.email_participant import EmailParticipant
 from src.models.relationship_profile import RelationshipProfile
-
-from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -93,17 +91,19 @@ class RelationshipVaultGenerator:
         # Generate People notes
         for profile in profiles:
             contact = contacts_by_email.get(profile.contact_email.lower())
-            company = companies_by_id.get(contact.company_id) if contact and contact.company_id else None
+            company = (
+                companies_by_id.get(contact.company_id) if contact and contact.company_id else None
+            )
             self._generate_person_note(profile, contact, company)
             stats["people"] += 1
 
-        logger.info("Generated %s People notes", stats['people'])
+        logger.info("Generated %s People notes", stats["people"])
 
         # Generate Thread notes for profiled contacts
         thread_count = self._generate_thread_notes(user_id, profiles, db)
         stats["threads"] = thread_count
 
-        logger.info("Generated %s Thread notes", stats['threads'])
+        logger.info("Generated %s Thread notes", stats["threads"])
 
         # Generate Index dashboards
         self._generate_indexes(profiles)
@@ -276,9 +276,7 @@ class RelationshipVaultGenerator:
                 f"- **First Exchange**: {profile.first_exchange_date.strftime('%Y-%m-%d')}"
             )
         if profile.last_exchange_date:
-            lines.append(
-                f"- **Last Exchange**: {profile.last_exchange_date.strftime('%Y-%m-%d')}"
-            )
+            lines.append(f"- **Last Exchange**: {profile.last_exchange_date.strftime('%Y-%m-%d')}")
         lines.append(f"- **Accounts**: {accounts_str}")
         lines.append("")
 
@@ -309,9 +307,7 @@ class RelationshipVaultGenerator:
         """
         # Collect all contact emails for filtering
         contact_emails = {p.contact_email for p in profiles}
-        contact_name_map = {
-            p.contact_email: (p.contact_name or p.contact_email) for p in profiles
-        }
+        contact_name_map = {p.contact_email: (p.contact_name or p.contact_email) for p in profiles}
 
         # Find threads involving these contacts.
         # 1) Threads where a contact was the sender (indexed, fast).
@@ -341,9 +337,7 @@ class RelationshipVaultGenerator:
                 .filter(
                     Email.user_id == user_id,
                     Email.gmail_thread_id.isnot(None),
-                    EmailParticipant.contact_id.in_(
-                        db.query(contact_id_subq.c.id)
-                    ),
+                    EmailParticipant.contact_id.in_(db.query(contact_id_subq.c.id)),
                 )
                 .distinct()
                 .all()
@@ -353,8 +347,7 @@ class RelationshipVaultGenerator:
 
         # Merge both sets of thread IDs
         thread_ids_query = list(
-            {row[0] for row in sender_thread_ids}
-            | {row[0] for row in ep_thread_ids}
+            {row[0] for row in sender_thread_ids} | {row[0] for row in ep_thread_ids}
         )
         # Convert back to list-of-tuples format expected below
         thread_ids_query = [(tid,) for tid in thread_ids_query]
@@ -388,9 +381,7 @@ class RelationshipVaultGenerator:
                 if not emails:
                     continue
 
-                self._write_thread_note(
-                    thread_id, emails, contact_emails, contact_name_map
-                )
+                self._write_thread_note(thread_id, emails, contact_emails, contact_name_map)
                 count += 1
 
             if batch_start + batch_size < len(thread_ids):
@@ -479,7 +470,9 @@ class RelationshipVaultGenerator:
 
             # Tags
             if email.tags:
-                tag_strs = [f"#{t.tag}" for t in email.tags if t.tag_category in ("topic", "sentiment")]
+                tag_strs = [
+                    f"#{t.tag}" for t in email.tags if t.tag_category in ("topic", "sentiment")
+                ]
                 if tag_strs:
                     lines.append(f"Tags: {' '.join(tag_strs)}")
                     lines.append("")
@@ -512,17 +505,13 @@ class RelationshipVaultGenerator:
             '  last_exchange as "Last",',
             '  sentiment_trend as "Trend"',
             'FROM "People"',
-            "WHERE type = \"person\"",
+            'WHERE type = "person"',
             "SORT total_emails DESC",
             "```",
         ]
-        (self.indexes_dir / "All_Contacts.md").write_text(
-            "\n".join(lines), encoding="utf-8"
-        )
+        (self.indexes_dir / "All_Contacts.md").write_text("\n".join(lines), encoding="utf-8")
 
-    def _generate_by_relationship_index(
-        self, profiles: list[RelationshipProfile]
-    ) -> None:
+    def _generate_by_relationship_index(self, profiles: list[RelationshipProfile]) -> None:
         """Generate By_Relationship.md index grouped by type."""
         lines = [
             "---",
@@ -548,13 +537,9 @@ class RelationshipVaultGenerator:
             lines.append("```")
             lines.append("")
 
-        (self.indexes_dir / "By_Relationship.md").write_text(
-            "\n".join(lines), encoding="utf-8"
-        )
+        (self.indexes_dir / "By_Relationship.md").write_text("\n".join(lines), encoding="utf-8")
 
-    def _generate_recent_activity_index(
-        self, profiles: list[RelationshipProfile]
-    ) -> None:
+    def _generate_recent_activity_index(self, profiles: list[RelationshipProfile]) -> None:
         """Generate Recent_Activity.md index sorted by last exchange."""
         lines = [
             "---",
@@ -570,17 +555,13 @@ class RelationshipVaultGenerator:
             '  last_exchange as "Last Contact",',
             '  sentiment_trend as "Trend"',
             'FROM "People"',
-            "WHERE type = \"person\"",
+            'WHERE type = "person"',
             "SORT last_exchange DESC",
             "```",
         ]
-        (self.indexes_dir / "Recent_Activity.md").write_text(
-            "\n".join(lines), encoding="utf-8"
-        )
+        (self.indexes_dir / "Recent_Activity.md").write_text("\n".join(lines), encoding="utf-8")
 
-    def _generate_conflict_log_index(
-        self, profiles: list[RelationshipProfile]
-    ) -> None:
+    def _generate_conflict_log_index(self, profiles: list[RelationshipProfile]) -> None:
         """Generate Conflict_Log.md with all detected conflicts."""
         lines = [
             "---",
@@ -619,9 +600,7 @@ class RelationshipVaultGenerator:
         if not has_conflicts:
             lines.append("*No conflicts detected across any relationships.*")
 
-        (self.indexes_dir / "Conflict_Log.md").write_text(
-            "\n".join(lines), encoding="utf-8"
-        )
+        (self.indexes_dir / "Conflict_Log.md").write_text("\n".join(lines), encoding="utf-8")
 
     def _generate_companies_index(self) -> None:
         """Generate Companies.md index with Dataview dashboard."""
@@ -660,9 +639,7 @@ class RelationshipVaultGenerator:
             "SORT company ASC",
             "```",
         ]
-        (self.indexes_dir / "Companies.md").write_text(
-            "\n".join(lines), encoding="utf-8"
-        )
+        (self.indexes_dir / "Companies.md").write_text("\n".join(lines), encoding="utf-8")
 
     def _sanitize_filename(self, name: str) -> str:
         """Sanitize name for use in filenames."""

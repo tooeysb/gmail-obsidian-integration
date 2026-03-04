@@ -7,15 +7,14 @@ as reference material.
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 
 from anthropic import Anthropic
-from sqlalchemy import and_, func, or_
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
 from src.core.logging import get_logger
-from src.models import Email, EmailTag, GmailAccount
+from src.models import Email, GmailAccount
 from src.models.relationship_profile import RelationshipProfile
 from src.models.voice_profile import VoiceProfile
 from src.services.voice.draft_prompt import (
@@ -71,9 +70,7 @@ class EmailDraftService:
         # Load voice profile
         profile = self._load_voice_profile(user_id)
         if not profile:
-            raise ValueError(
-                "No voice profile found. Run generate_voice_profile.py first."
-            )
+            raise ValueError("No voice profile found. Run generate_voice_profile.py first.")
 
         # Determine relationship type
         relationship_type = self._get_relationship_type(user_id, recipient_email)
@@ -84,7 +81,9 @@ class EmailDraftService:
         )
 
         # Build prompt
-        example_text = format_example_emails(similar_emails) if similar_emails else "No similar emails found."
+        example_text = (
+            format_example_emails(similar_emails) if similar_emails else "No similar emails found."
+        )
         tone_str = tone or "match my usual tone for this type of person"
         reply_line = f"- Replying to subject: {reply_to_subject}" if reply_to_subject else ""
 
@@ -231,10 +230,7 @@ class EmailDraftService:
                         Email.body != "",
                         Email.id.notin_(seen_ids) if seen_ids else True,
                         or_(
-                            *[
-                                Email.recipient_emails.ilike(f"%{ce}%")
-                                for ce in contact_emails[:20]
-                            ]
+                            *[Email.recipient_emails.ilike(f"%{ce}%") for ce in contact_emails[:20]]
                         ),
                     )
                     .order_by(Email.date.desc())

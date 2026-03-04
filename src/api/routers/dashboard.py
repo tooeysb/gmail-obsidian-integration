@@ -16,11 +16,12 @@ from sqlalchemy.orm import Session
 from src.api.middleware.auth import require_api_key
 from src.core.database import get_sync_db
 from src.core.logging import get_logger
-from src.models import Email, GmailAccount, SyncJob, GuardianEvent
+from src.models import Email, GmailAccount, GuardianEvent, SyncJob
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
 
 def _load_gmail_totals() -> dict[str, int]:
     """Load Gmail totals from GMAIL_TOTALS_JSON env var (queried offline to avoid rate limits)."""
@@ -106,7 +107,7 @@ async def get_email_stats(db: Session = Depends(get_sync_db)) -> EmailStatsRespo
 
     # Get per-account stats
     accounts_list = []
-    gmail_accounts = db.query(GmailAccount).filter(GmailAccount.is_active == True).all()
+    gmail_accounts = db.query(GmailAccount).filter(GmailAccount.is_active is True).all()
 
     # Bulk query: count, min(date), max(date) per account in ONE query instead of 3 * N
     account_stats_q = (
@@ -189,10 +190,7 @@ async def get_email_stats(db: Session = Depends(get_sync_db)) -> EmailStatsRespo
     # Get recent monitor events (last 10)
     monitor_events_list = []
     recent_events = (
-        db.query(GuardianEvent)
-        .order_by(GuardianEvent.created_at.desc())
-        .limit(10)
-        .all()
+        db.query(GuardianEvent).order_by(GuardianEvent.created_at.desc()).limit(10).all()
     )
 
     for event in recent_events:
@@ -236,11 +234,12 @@ async def get_email_stats(db: Session = Depends(get_sync_db)) -> EmailStatsRespo
     )
 
 
-_WIDGET_HTML_PATH = Path(__file__).resolve().parent.parent.parent / "static" / "dashboard" / "widget.html"
+_WIDGET_HTML_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "static" / "dashboard" / "widget.html"
+)
 
 
 @router.get("/widget", response_class=HTMLResponse)
 async def get_widget() -> str:
     """Get embeddable HTML widget for dashboard."""
     return _WIDGET_HTML_PATH.read_text()
-

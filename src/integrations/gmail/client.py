@@ -4,7 +4,6 @@ Handles email and contact fetching with proper pagination and error handling.
 """
 
 import base64
-import email
 from datetime import datetime
 from email.utils import parseaddr, parsedate_to_datetime
 from typing import Any
@@ -110,11 +109,15 @@ class GmailClient:
         self.rate_limiter.wait_for_token()
 
         try:
-            request = self.people_service.people().connections().list(
-                resourceName="people/me",
-                pageSize=min(page_size, 1000),
-                pageToken=page_token,
-                personFields="names,emailAddresses,phoneNumbers",
+            request = (
+                self.people_service.people()
+                .connections()
+                .list(
+                    resourceName="people/me",
+                    pageSize=min(page_size, 1000),
+                    pageToken=page_token,
+                    personFields="names,emailAddresses,phoneNumbers",
+                )
             )
             response = request.execute()
 
@@ -139,17 +142,19 @@ class GmailClient:
                 phone_numbers = person.get("phoneNumbers", [])
                 phone = phone_numbers[0].get("value") if phone_numbers else None
 
-                contacts.append({
-                    "email": primary_email,
-                    "name": name,
-                    "phone": phone,
-                })
+                contacts.append(
+                    {
+                        "email": primary_email,
+                        "name": name,
+                        "phone": phone,
+                    }
+                )
 
             next_page_token = response.get("nextPageToken")
             return contacts, next_page_token
 
         except HttpError as e:
-            raise GmailClientError(f"Failed to fetch contacts: {e}")
+            raise GmailClientError(f"Failed to fetch contacts: {e}") from e
 
     @with_retry
     def fetch_emails_chunked(
@@ -180,11 +185,15 @@ class GmailClient:
         self.rate_limiter.wait_for_token()
 
         try:
-            request = self.gmail_service.users().messages().list(
-                userId="me",
-                maxResults=min(batch_size, 500),
-                pageToken=page_token,
-                q=query,
+            request = (
+                self.gmail_service.users()
+                .messages()
+                .list(
+                    userId="me",
+                    maxResults=min(batch_size, 500),
+                    pageToken=page_token,
+                    q=query,
+                )
             )
             response = request.execute()
 
@@ -195,7 +204,7 @@ class GmailClient:
             return message_ids, next_page_token
 
         except HttpError as e:
-            raise GmailClientError(f"Failed to fetch email IDs: {e}")
+            raise GmailClientError(f"Failed to fetch email IDs: {e}") from e
 
     @with_retry
     def fetch_message_batch(
@@ -231,7 +240,7 @@ class GmailClient:
         # against Gmail's concurrent request limit per user.
         chunk_size = 20
         for i in range(0, len(message_ids), chunk_size):
-            chunk = message_ids[i:i + chunk_size]
+            chunk = message_ids[i : i + chunk_size]
             batch_emails = self._fetch_batch_chunk(chunk, format)
             emails.extend(batch_emails)
 
@@ -273,11 +282,17 @@ class GmailClient:
 
             # Add each message to batch
             for msg_id in message_ids:
-                request = self.gmail_service.users().messages().get(
-                    userId="me",
-                    id=msg_id,
-                    format=format,
-                    metadataHeaders=["From", "To", "Subject", "Date"] if format == "metadata" else None,
+                request = (
+                    self.gmail_service.users()
+                    .messages()
+                    .get(
+                        userId="me",
+                        id=msg_id,
+                        format=format,
+                        metadataHeaders=(
+                            ["From", "To", "Subject", "Date"] if format == "metadata" else None
+                        ),
+                    )
                 )
                 batch.add(request, callback=callback)
 
@@ -287,7 +302,7 @@ class GmailClient:
             return emails
 
         except HttpError as e:
-            raise GmailClientError(f"Failed to fetch message batch: {e}")
+            raise GmailClientError(f"Failed to fetch message batch: {e}") from e
 
     def _parse_message(self, message: dict) -> dict[str, Any]:
         """
@@ -393,11 +408,16 @@ class GmailClient:
         self.rate_limiter.wait_for_token()
 
         try:
-            message = self.gmail_service.users().messages().get(
-                userId="me",
-                id=message_id,
-                format="full",
-            ).execute()
+            message = (
+                self.gmail_service.users()
+                .messages()
+                .get(
+                    userId="me",
+                    id=message_id,
+                    format="full",
+                )
+                .execute()
+            )
 
             # Extract body from payload
             payload = message.get("payload", {})
@@ -406,7 +426,7 @@ class GmailClient:
             return body
 
         except HttpError as e:
-            raise GmailClientError(f"Failed to fetch message body: {e}")
+            raise GmailClientError(f"Failed to fetch message body: {e}") from e
 
     def _extract_body_from_payload(self, payload: dict) -> str | None:
         """

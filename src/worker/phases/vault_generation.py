@@ -6,7 +6,7 @@ Skipped in production (Heroku has read-only filesystem).
 """
 
 from collections import defaultdict
-from typing import Callable
+from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 

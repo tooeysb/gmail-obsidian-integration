@@ -1,12 +1,10 @@
 """Tests for the digest data assembly service."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
-import pytest
-
-from src.services.news.digest import DigestService, DailyDigestData, WeeklyDigestData
+from src.services.news.digest import DailyDigestData, DigestService, WeeklyDigestData
 
 
 def _make_news_item(
@@ -26,8 +24,8 @@ def _make_news_item(
     item.company = MagicMock()
     item.company.name = company_name
     item.analysis = {"category": category, "relevance_score": relevance_score}
-    item.published_at = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
-    item.created_at = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    item.published_at = datetime.now(UTC) - timedelta(hours=hours_ago)
+    item.created_at = datetime.now(UTC) - timedelta(hours=hours_ago)
     return item
 
 
@@ -36,7 +34,9 @@ class TestDailyDigest:
 
     def test_empty_day_returns_zero_stats(self):
         db = MagicMock()
-        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = []
+        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = (
+            []
+        )
 
         service = DigestService(db)
         data = service.build_daily_digest("user-123")
@@ -54,7 +54,9 @@ class TestDailyDigest:
             _make_news_item(title="Kiewit lands highway deal", company_name="Kiewit Corp."),
         ]
         db = MagicMock()
-        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = items
+        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = (
+            items
+        )
         db.query.return_value.filter.return_value.scalar.return_value = 0
 
         service = DigestService(db)
@@ -74,7 +76,9 @@ class TestDailyDigest:
             _make_news_item(title="Medium relevance", relevance_score=0.6),
         ]
         db = MagicMock()
-        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = items
+        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = (
+            items
+        )
         db.query.return_value.filter.return_value.scalar.return_value = 0
 
         service = DigestService(db)
@@ -91,7 +95,9 @@ class TestDailyDigest:
             _make_news_item(source_type="enr"),
         ]
         db = MagicMock()
-        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = items
+        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = (
+            items
+        )
         db.query.return_value.filter.return_value.scalar.return_value = 0
 
         service = DigestService(db)
@@ -106,7 +112,9 @@ class TestWeeklyDigest:
 
     def test_empty_week_returns_zero_stats(self):
         db = MagicMock()
-        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = []
+        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = (
+            []
+        )
 
         service = DigestService(db)
         data = service.build_weekly_digest("user-123")
@@ -124,7 +132,9 @@ class TestWeeklyDigest:
             _make_news_item(category="executive_hire"),
         ]
         db = MagicMock()
-        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = items
+        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = (
+            items
+        )
         db.query.return_value.filter.return_value.group_by.return_value.all.return_value = []
 
         service = DigestService(db)
@@ -143,7 +153,9 @@ class TestWeeklyDigest:
             _make_news_item(company_name="Skanska"),
         ]
         db = MagicMock()
-        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = items
+        db.query.return_value.options.return_value.filter.return_value.order_by.return_value.all.return_value = (
+            items
+        )
         db.query.return_value.filter.return_value.group_by.return_value.all.return_value = []
 
         service = DigestService(db)

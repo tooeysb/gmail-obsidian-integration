@@ -32,9 +32,7 @@ class CompanyNewsItem(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "company_news_items"
-    __table_args__ = (
-        UniqueConstraint("company_id", "source_url", name="uq_company_news_source"),
-    )
+    __table_args__ = (UniqueConstraint("company_id", "source_url", name="uq_company_news_source"),)
 
     # Foreign Keys
     user_id: Mapped[UUID] = mapped_column(
@@ -52,9 +50,7 @@ class CompanyNewsItem(Base, UUIDMixin, TimestampMixin):
     )
 
     # Source info
-    source_url: Mapped[str] = mapped_column(
-        String(2048), nullable=False, comment="Article URL"
-    )
+    source_url: Mapped[str] = mapped_column(String(2048), nullable=False, comment="Article URL")
 
     source_type: Mapped[str] = mapped_column(
         String(50),
@@ -83,13 +79,15 @@ class CompanyNewsItem(Base, UUIDMixin, TimestampMixin):
         JSON, nullable=True, comment="Claude Haiku classification results"
     )
 
-    analyzed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="new", index=True, comment="new, analyzed, actioned, dismissed"
+        String(20),
+        nullable=False,
+        default="new",
+        index=True,
+        comment="new, analyzed, actioned, dismissed",
     )
 
     # Relationships
@@ -100,4 +98,6 @@ class CompanyNewsItem(Base, UUIDMixin, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return f"<CompanyNewsItem(id={self.id}, company_id={self.company_id}, title={self.title!r})>"
+        return (
+            f"<CompanyNewsItem(id={self.id}, company_id={self.company_id}, title={self.title!r})>"
+        )

@@ -5,7 +5,7 @@ Processes emails in batches through Claude for theme extraction, then generates 
 """
 
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
@@ -32,14 +32,15 @@ def detect_themes(
 ) -> None:
     """Run theme detection on all emails using Claude Batch API."""
     batch_size = settings.claude_batch_size
-    email_batches = [
-        all_emails[i : i + batch_size] for i in range(0, len(all_emails), batch_size)
-    ]
+    email_batches = [all_emails[i : i + batch_size] for i in range(0, len(all_emails), batch_size)]
 
     for batch_idx, email_batch in enumerate(email_batches):
         logger.info(
             "[%s] Processing theme detection batch %d/%d (%d emails)",
-            correlation_id, batch_idx + 1, len(email_batches), len(email_batch),
+            correlation_id,
+            batch_idx + 1,
+            len(email_batches),
+            len(email_batch),
         )
 
         batch_results = theme_processor.process_emails_sync(email_batch)
@@ -74,9 +75,13 @@ def detect_themes(
 
         db.commit()
 
-        progress = int(PROGRESS_MIN + ((batch_idx + 1) / len(email_batches)) * (PROGRESS_MAX - PROGRESS_MIN))
+        progress = int(
+            PROGRESS_MIN + ((batch_idx + 1) / len(email_batches)) * (PROGRESS_MAX - PROGRESS_MIN)
+        )
         progress_callback(
-            "themes", progress, len(all_emails),
+            "themes",
+            progress,
+            len(all_emails),
             f"Processed {(batch_idx + 1) * batch_size} emails for themes",
         )
         job.progress_pct = progress

@@ -2,18 +2,12 @@
 Authentication routes for Gmail OAuth2 flow.
 """
 
+import secrets
 import uuid
 from typing import Any
 
-import json
-import secrets
-import uuid
-import warnings
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from google_auth_oauthlib.flow import Flow
-from oauthlib.oauth2.rfc6749.errors import OAuth2Error
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -133,7 +127,9 @@ async def initiate_oauth(
         logger.info("Generated auth URL for %s", account_label)
     except Exception as e:
         logger.error("Error generating auth URL: %s", str(e))
-        raise HTTPException(status_code=500, detail="Failed to generate authorization URL")
+        raise HTTPException(
+            status_code=500, detail="Failed to generate authorization URL"
+        ) from None
 
     return AuthUrlResponse(
         auth_url=auth_url,
@@ -198,8 +194,9 @@ async def oauth_callback(
         # Try to get email from id_token first (most reliable)
         account_email = None
 
-        if hasattr(credentials, 'id_token') and credentials.id_token:
+        if hasattr(credentials, "id_token") and credentials.id_token:
             import jwt
+
             id_token_claims = jwt.decode(credentials.id_token, options={"verify_signature": False})
             account_email = id_token_claims.get("email")
             logger.info("Extracted email from id_token: %s", account_email)
@@ -207,10 +204,11 @@ async def oauth_callback(
         # Fallback to userinfo endpoint if needed
         if not account_email:
             import requests as http_requests
+
             logger.info("Falling back to userinfo endpoint")
             userinfo_response = http_requests.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {credentials.token}"}
+                headers={"Authorization": f"Bearer {credentials.token}"},
             )
             userinfo = userinfo_response.json()
             logger.info("Userinfo response: %s", userinfo)
@@ -225,10 +223,14 @@ async def oauth_callback(
         from datetime import datetime
 
         # Check if account already exists
-        existing_account = db.query(GmailAccount).filter(
-            GmailAccount.user_id == uuid.UUID(user_id),
-            GmailAccount.account_label == account_label
-        ).first()
+        existing_account = (
+            db.query(GmailAccount)
+            .filter(
+                GmailAccount.user_id == uuid.UUID(user_id),
+                GmailAccount.account_label == account_label,
+            )
+            .first()
+        )
 
         credentials_dict = {
             "token": credentials.token,
@@ -272,11 +274,11 @@ async def oauth_callback(
 
     except ValueError as e:
         logger.error("OAuth callback validation error: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     except Exception as e:
         logger.error("OAuth callback error: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Authentication failed")
+        raise HTTPException(status_code=500, detail="Authentication failed") from None
 
 
 @router.get("/status", response_model=AuthStatusResponse)
@@ -301,9 +303,7 @@ async def check_auth_status(
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
 
     # Get all accounts for user
-    accounts = (
-        db.query(GmailAccount).filter(GmailAccount.user_id == uuid.UUID(user_id)).all()
-    )
+    accounts = db.query(GmailAccount).filter(GmailAccount.user_id == uuid.UUID(user_id)).all()
 
     account_statuses = [
         AccountStatus(
@@ -369,4 +369,4 @@ async def revoke_account(
 
     except Exception as e:
         logger.error("Error revoking credentials: %s", str(e))
-        raise HTTPException(status_code=500, detail="Failed to revoke credentials")
+        raise HTTPException(status_code=500, detail="Failed to revoke credentials") from None

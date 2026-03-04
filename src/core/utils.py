@@ -23,22 +23,24 @@ def strip_markdown_codeblocks(text: str) -> str:
 
 
 # Generic/personal email domains shared across company_resolver and contact_discovery.
-GENERIC_EMAIL_DOMAINS: frozenset[str] = frozenset({
-    "gmail.com",
-    "yahoo.com",
-    "hotmail.com",
-    "outlook.com",
-    "aol.com",
-    "icloud.com",
-    "me.com",
-    "live.com",
-    "msn.com",
-    "protonmail.com",
-    "mail.com",
-    "comcast.net",
-    "att.net",
-    "verizon.net",
-    "sbcglobal.net",
-    "cox.net",
-    "charter.net",
-})
+GENERIC_EMAIL_DOMAINS: frozenset[str] = frozenset(
+    {
+        "gmail.com",
+        "yahoo.com",
+        "hotmail.com",
+        "outlook.com",
+        "aol.com",
+        "icloud.com",
+        "me.com",
+        "live.com",
+        "msn.com",
+        "protonmail.com",
+        "mail.com",
+        "comcast.net",
+        "att.net",
+        "verizon.net",
+        "sbcglobal.net",
+        "cox.net",
+        "charter.net",
+    }
+)

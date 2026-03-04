@@ -75,7 +75,6 @@ class CompanyResolver:
             "Cab List",
             "Margaux - Responses",
         ]
-        unmatched_names: set[str] = set()
 
         for tab_name in contact_tabs:
             rows = tabs_data.get(tab_name, [])
@@ -107,14 +106,10 @@ class CompanyResolver:
                 self.db.add(company)
                 self.db.flush()
                 company_map[normalized] = company.id
-                logger.debug(
-                    "Created company '%s' from tab '%s'", company_name, tab_name
-                )
+                logger.debug("Created company '%s' from tab '%s'", company_name, tab_name)
 
         self.db.commit()
-        logger.info(
-            "Company resolution complete: %d total companies mapped", len(company_map)
-        )
+        logger.info("Company resolution complete: %d total companies mapped", len(company_map))
         return company_map
 
     def _load_existing_companies(self) -> dict[str, UUID]:
@@ -130,9 +125,7 @@ class CompanyResolver:
                     mapping[self._normalize_name(alias)] = c.id
         return mapping
 
-    def _create_from_over_1m(
-        self, rows: list[dict], company_map: dict[str, UUID]
-    ) -> int:
+    def _create_from_over_1m(self, rows: list[dict], company_map: dict[str, UUID]) -> int:
         """Create canonical Company records from the Over 1M Customers tab."""
         created = 0
         for row in rows:
@@ -164,9 +157,7 @@ class CompanyResolver:
         self.db.commit()
         return created
 
-    def _match_company_name(
-        self, normalized: str, company_map: dict[str, UUID]
-    ) -> UUID | None:
+    def _match_company_name(self, normalized: str, company_map: dict[str, UUID]) -> UUID | None:
         """
         Fuzzy match a normalized company name against existing company names.
         Uses prefix matching and substring containment for common variations.
@@ -200,9 +191,7 @@ class CompanyResolver:
         if alias.strip() not in current_aliases:
             company.aliases = current_aliases + [alias.strip()]
 
-    def _extract_domains_from_contacts(
-        self, tabs_data: dict[str, list[dict]]
-    ) -> dict[str, str]:
+    def _extract_domains_from_contacts(self, tabs_data: dict[str, list[dict]]) -> dict[str, str]:
         """
         Scan contact tabs to find email domains associated with company names.
 

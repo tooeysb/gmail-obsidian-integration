@@ -24,9 +24,7 @@ class GmailAccount(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "gmail_accounts"
-    __table_args__ = (
-        UniqueConstraint("user_id", "account_email", name="uq_user_account_email"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "account_email", name="uq_user_account_email"),)
 
     # Foreign Keys
     user_id: Mapped[UUID] = mapped_column(
@@ -70,4 +68,6 @@ class GmailAccount(Base, UUIDMixin, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return f"<GmailAccount(id={self.id}, label={self.account_label}, email={self.account_email})>"
+        return (
+            f"<GmailAccount(id={self.id}, label={self.account_label}, email={self.account_email})>"
+        )

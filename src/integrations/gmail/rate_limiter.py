@@ -8,14 +8,15 @@ multiple workers compete for tokens concurrently.
 
 import ssl
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import redis
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from src.core.config import settings
@@ -220,11 +221,14 @@ def rate_limited(rate_limiter: GmailRateLimiter) -> Callable:
             # API call here
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             rate_limiter.wait_for_token()
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -243,6 +247,7 @@ def with_retry(func: Callable) -> Callable:
     Returns:
         Decorated function with retry logic
     """
+
     @retry(
         wait=wait_exponential(min=4, max=60),
         stop=stop_after_attempt(5),
@@ -256,7 +261,7 @@ def with_retry(func: Callable) -> Callable:
             # Log retry attempt
             error_msg = str(e)
             if "429" in error_msg or "quota" in error_msg.lower():
-                raise GmailRateLimitExceeded(f"Gmail API rate limit: {error_msg}")
+                raise GmailRateLimitExceeded(f"Gmail API rate limit: {error_msg}") from e
             raise
 
     return wrapper

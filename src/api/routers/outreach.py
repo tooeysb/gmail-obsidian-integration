@@ -2,7 +2,7 @@
 Outreach API routes for news intelligence and draft suggestions.
 """
 
-from typing import Optional
+from datetime import UTC
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,9 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from src.api.middleware.auth import get_current_user
 from src.core.database import get_sync_db
 from src.core.utils import serialize_dt
-from src.models.company import Company
 from src.models.company_news import CompanyNewsItem
-from src.models.contact import Contact
 from src.models.draft_suggestion import DraftSuggestion
 from src.models.user import User
 
@@ -33,15 +31,15 @@ SUGGESTION_SORTABLE_COLUMNS = frozenset({"created_at", "status", "generated_at"}
 class NewsItemResponse(BaseModel):
     id: str
     company_id: str
-    company_name: Optional[str] = None
+    company_name: str | None = None
     title: str
-    summary: Optional[str] = None
+    summary: str | None = None
     source_url: str
     source_type: str
-    published_at: Optional[str] = None
-    analysis: Optional[dict] = None
+    published_at: str | None = None
+    analysis: dict | None = None
     status: str
-    created_at: Optional[str] = None
+    created_at: str | None = None
     draft_count: int = 0
 
 
@@ -49,25 +47,25 @@ class DraftSuggestionResponse(BaseModel):
     id: str
     news_item_id: str
     contact_id: str
-    contact_name: Optional[str] = None
+    contact_name: str | None = None
     contact_email: str
-    contact_title: Optional[str] = None
-    company_name: Optional[str] = None
+    contact_title: str | None = None
+    company_name: str | None = None
     news_title: str
-    news_category: Optional[str] = None
-    news_url: Optional[str] = None
+    news_category: str | None = None
+    news_url: str | None = None
     subject: str
     body: str
     status: str
-    generated_at: Optional[str] = None
-    created_at: Optional[str] = None
+    generated_at: str | None = None
+    created_at: str | None = None
 
 
 class DraftUpdateRequest(BaseModel):
-    status: Optional[str] = None
-    subject: Optional[str] = None
-    body: Optional[str] = None
-    snoozed_until: Optional[str] = None
+    status: str | None = None
+    subject: str | None = None
+    body: str | None = None
+    snoozed_until: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -173,9 +171,9 @@ def outreach_dashboard(
 def list_news_items(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    status: Optional[str] = None,
-    category: Optional[str] = None,
-    company_id: Optional[str] = None,
+    status: str | None = None,
+    category: str | None = None,
+    company_id: str | None = None,
     sort_by: str = "created_at",
     sort_dir: str = "desc",
     user: User = Depends(get_current_user),
@@ -214,7 +212,7 @@ def list_news_items(
             .group_by(DraftSuggestion.news_item_id)
             .all()
         )
-        draft_counts = {nid: cnt for nid, cnt in counts}
+        draft_counts = dict(counts)
 
     return {
         "items": [_serialize_news_item(i, draft_counts.get(i.id, 0)) for i in items],
@@ -367,9 +365,9 @@ def regenerate_suggestion(
     s.body = result.body
     s.model_used = result.model
     s.status = "pending"
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    s.generated_at = datetime.now(timezone.utc)
+    s.generated_at = datetime.now(UTC)
 
     db.commit()
     return _serialize_suggestion(s)

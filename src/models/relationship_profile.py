@@ -5,7 +5,7 @@ Relationship Profile model for storing Claude-generated contact analysis.
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,9 +24,7 @@ class RelationshipProfile(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "relationship_profiles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "contact_email", name="uq_user_relationship"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "contact_email", name="uq_user_relationship"),)
 
     # Foreign Keys
     user_id: Mapped[UUID] = mapped_column(

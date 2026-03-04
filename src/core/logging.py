@@ -22,15 +22,18 @@ SENSITIVE_PATTERNS = [
     (re.compile(r'"api_key":\s*"[^"]+'), '"api_key": "[REDACTED]'),
     (re.compile(r'"secret_key":\s*"[^"]+'), '"secret_key": "[REDACTED]'),
     # Authorization headers
-    (re.compile(r'Authorization:\s*Bearer\s+\S+', re.IGNORECASE), 'Authorization: Bearer [REDACTED]'),
-    (re.compile(r'Authorization:\s*\S+', re.IGNORECASE), 'Authorization: [REDACTED]'),
+    (
+        re.compile(r"Authorization:\s*Bearer\s+\S+", re.IGNORECASE),
+        "Authorization: Bearer [REDACTED]",
+    ),
+    (re.compile(r"Authorization:\s*\S+", re.IGNORECASE), "Authorization: [REDACTED]"),
     # Password patterns
     (re.compile(r'"password":\s*"[^"]+'), '"password": "[REDACTED]'),
-    (re.compile(r'password=\S+', re.IGNORECASE), 'password=[REDACTED]'),
+    (re.compile(r"password=\S+", re.IGNORECASE), "password=[REDACTED]"),
     # Database connection strings with credentials
-    (re.compile(r'postgresql://[^:]+:[^@]+@'), 'postgresql://[REDACTED]:[REDACTED]@'),
+    (re.compile(r"postgresql://[^:]+:[^@]+@"), "postgresql://[REDACTED]:[REDACTED]@"),
     # Generic key-value pairs that might contain secrets
-    (re.compile(r'credentials=\{[^}]+\}'), 'credentials={[REDACTED]}'),
+    (re.compile(r"credentials=\{[^}]+\}"), "credentials={[REDACTED]}"),
 ]
 
 
@@ -54,6 +57,7 @@ def _get_request_id() -> str:
     """Get current request ID from correlation middleware, or '-' if unavailable."""
     try:
         from src.api.middleware.correlation import request_id_var
+
         return request_id_var.get()
     except Exception:
         return "-"
@@ -157,7 +161,7 @@ def safe_repr(obj: Any, redact_keys: list[str] | None = None) -> str:
             else:
                 safe_dict[key] = safe_repr(value, redact_keys)
         return str(safe_dict)
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, list | tuple):
         return str([safe_repr(item, redact_keys) for item in obj])
     else:
         return str(obj)

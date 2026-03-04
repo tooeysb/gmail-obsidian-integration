@@ -2,8 +2,6 @@
 Unit tests for voice draft prompt formatting functions.
 """
 
-import pytest
-
 from src.services.voice.draft_prompt import (
     format_emails_for_analysis,
     format_example_emails,

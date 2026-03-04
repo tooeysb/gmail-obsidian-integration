@@ -7,15 +7,14 @@ import re
 import uuid as uuid_mod
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from src.core.logging import get_logger
 from src.models.contact import Contact
 from src.models.email import Email
 from src.models.email_participant import EmailParticipant
-
-from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -94,9 +93,7 @@ class EmailParticipantBuilder:
 
     def _build_contact_lookup(self) -> dict[str, UUID]:
         """Build a {lowercase_email: contact_id} lookup from all contacts."""
-        stmt = select(Contact.id, Contact.email).where(
-            Contact.user_id == self.user_id
-        )
+        stmt = select(Contact.id, Contact.email).where(Contact.user_id == self.user_id)
         rows = self.db.execute(stmt).all()
         return {email.lower(): cid for cid, email in rows if email}
 
@@ -157,9 +154,7 @@ class EmailParticipantBuilder:
 
         # Bulk insert with ON CONFLICT DO NOTHING for the unique constraint
         stmt = pg_insert(EmailParticipant.__table__).values(values)
-        stmt = stmt.on_conflict_do_nothing(
-            constraint="uq_email_contact_role"
-        )
+        stmt = stmt.on_conflict_do_nothing(constraint="uq_email_contact_role")
         result = self.db.execute(stmt)
         self.db.commit()
 

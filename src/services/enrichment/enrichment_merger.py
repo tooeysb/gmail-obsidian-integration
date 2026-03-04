@@ -9,12 +9,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.core.logging import get_logger
 from src.models.company import Company
 from src.models.contact import Contact
 from src.models.contact_enrichment import ContactEnrichment
 from src.models.relationship_profile import RelationshipProfile
-
-from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -30,9 +29,7 @@ _TAB_PRIORITY: list[str] = [
     "Family_Friends_Mentors_Others",
 ]
 
-_TAB_PRIORITY_MAP: dict[str, int] = {
-    name: idx for idx, name in enumerate(_TAB_PRIORITY)
-}
+_TAB_PRIORITY_MAP: dict[str, int] = {name: idx for idx, name in enumerate(_TAB_PRIORITY)}
 
 
 @dataclass
@@ -65,23 +62,16 @@ class EnrichmentMerger:
 
         # Load all enrichments grouped by email
         enrichment_groups = self._load_enrichment_groups()
-        logger.info(
-            "Found %d unique emails with enrichment data", len(enrichment_groups)
-        )
+        logger.info("Found %d unique emails with enrichment data", len(enrichment_groups))
 
         # Bulk-load all companies referenced by enrichments to avoid N+1 queries
         all_company_ids = {
-            e.company_id
-            for group in enrichment_groups.values()
-            for e in group
-            if e.company_id
+            e.company_id for group in enrichment_groups.values() for e in group if e.company_id
         }
         companies_by_id: dict = {}
         if all_company_ids:
             companies = (
-                self.db.execute(
-                    select(Company).where(Company.id.in_(all_company_ids))
-                )
+                self.db.execute(select(Company).where(Company.id.in_(all_company_ids)))
                 .scalars()
                 .all()
             )
@@ -125,22 +115,16 @@ class EnrichmentMerger:
 
         # Sort each group by tab priority (highest priority first)
         for email in groups:
-            groups[email].sort(
-                key=lambda e: _TAB_PRIORITY_MAP.get(e.source_tab, 999)
-            )
+            groups[email].sort(key=lambda e: _TAB_PRIORITY_MAP.get(e.source_tab, 999))
 
         return groups
 
     def _get_contact(self, email: str) -> Contact | None:
         """Look up a contact by email."""
-        stmt = select(Contact).where(
-            Contact.user_id == self.user_id, Contact.email == email
-        )
+        stmt = select(Contact).where(Contact.user_id == self.user_id, Contact.email == email)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def _merge_contact_data(
-        self, contact: Contact, enrichments: list[ContactEnrichment]
-    ) -> None:
+    def _merge_contact_data(self, contact: Contact, enrichments: list[ContactEnrichment]) -> None:
         """
         Apply enrichment data to a contact using tab priority rules.
 

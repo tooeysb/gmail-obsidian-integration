@@ -11,12 +11,13 @@ Benefits over pagination approach:
 - Easy resume on failure (just fetch unclaimed IDs)
 - No wasted time on empty pagination
 """
+
 import json
 import time
 import uuid
 from datetime import datetime, timedelta
 
-from celery import chain, group
+from celery import group
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert
 
@@ -128,7 +129,7 @@ def fetch_all_message_ids(user_id: str, account_label: str = None):
         # Get accounts to scan
         query = db.query(GmailAccount).filter(
             GmailAccount.user_id == user_id,
-            GmailAccount.is_active == True,
+            GmailAccount.is_active is True,
         )
 
         if account_label:
@@ -251,7 +252,7 @@ def fetch_message_batch(account_id: str):
             .filter(
                 EmailQueue.account_id == account_id,
                 EmailQueue.claimed_at < stale_threshold,
-                EmailQueue.claimed_by != None,
+                EmailQueue.claimed_by is not None,
             )
             .update({"claimed_by": None, "claimed_at": None}, synchronize_session=False)
         )
@@ -270,7 +271,7 @@ def fetch_message_batch(account_id: str):
             db.query(EmailQueue)
             .filter(
                 EmailQueue.account_id == account_id,
-                EmailQueue.claimed_by == None,
+                EmailQueue.claimed_by is None,
             )
             .limit(BATCH_SIZE)
             .with_for_update(skip_locked=True)  # Skip rows locked by other workers
@@ -365,7 +366,7 @@ def fetch_message_batch(account_id: str):
                 db.query(func.count(EmailQueue.id))
                 .filter(
                     EmailQueue.account_id == account_id,
-                    EmailQueue.claimed_by == None,
+                    EmailQueue.claimed_by is None,
                 )
                 .scalar()
             )

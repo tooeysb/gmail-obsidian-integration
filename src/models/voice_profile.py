@@ -24,9 +24,7 @@ class VoiceProfile(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "voice_profiles"
-    __table_args__ = (
-        UniqueConstraint("user_id", "profile_name", name="uq_user_voice_profile"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "profile_name", name="uq_user_voice_profile"),)
 
     # Foreign Keys
     user_id: Mapped[UUID] = mapped_column(

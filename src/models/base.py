@@ -4,7 +4,6 @@ Base model with common fields and utilities.
 
 import uuid
 from datetime import datetime
-from typing import Any
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -35,9 +34,7 @@ class TimestampMixin:
 class UUIDMixin:
     """Mixin to add UUID primary key."""
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
 
 def generate_uuid() -> uuid.UUID:

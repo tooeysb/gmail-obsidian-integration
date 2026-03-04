@@ -41,10 +41,7 @@ def _build_search_url(company_name: str, max_age_days: int | None = None) -> str
     query = f'"{company_name}" construction'
     if max_age_days:
         query += f" when:{max_age_days}d"
-    return (
-        f"https://news.google.com/rss/search?"
-        f"q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
-    )
+    return f"https://news.google.com/rss/search?" f"q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
 
 
 def _name_variants(name: str) -> list[str]:
@@ -288,7 +285,10 @@ def main():
     )
     parser.add_argument("--delay", type=float, default=2.0, help="Seconds between companies")
     parser.add_argument(
-        "--max-age-days", type=int, default=14, help="Only store articles this many days old (0=all)"
+        "--max-age-days",
+        type=int,
+        default=14,
+        help="Only store articles this many days old (0=all)",
     )
     args = parser.parse_args()
 
@@ -336,9 +336,7 @@ def main():
 
             if not result.get("searched"):
                 totals["skipped"] += 1
-                skipped_companies.append(
-                    f"{company.name} — {result.get('reason', 'unknown')}"
-                )
+                skipped_companies.append(f"{company.name} — {result.get('reason', 'unknown')}")
             else:
                 totals["processed"] += 1
                 totals["total_articles"] += result.get("articles", 0)

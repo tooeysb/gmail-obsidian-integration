@@ -4,8 +4,6 @@ Unit tests for logging utilities with credential redaction.
 
 import logging
 
-import pytest
-
 from src.core.logging import RedactingFormatter, get_logger, redact_sensitive_data, safe_repr
 
 
@@ -283,6 +281,7 @@ class TestIntegrationWithGmailAuth:
 
         # Log as JSON string instead of Python dict to match expected format
         import json
+
         credentials_dict = {
             "token": "ya29.a0AfH6SMBx...",
             "refresh_token": "1//0gPwK9...",

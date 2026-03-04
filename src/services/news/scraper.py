@@ -8,7 +8,6 @@ parses article metadata, and stores new items in the database.
 import hashlib
 import time
 import uuid
-from datetime import datetime, timezone
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert

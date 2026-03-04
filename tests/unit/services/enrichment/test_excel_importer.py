@@ -5,8 +5,6 @@ Tests pure Python parsing logic without requiring openpyxl or real files.
 
 from datetime import date, datetime
 
-import pytest
-
 from src.services.enrichment.excel_importer import (
     _build_column_mapping,
     _clean_cell_value,

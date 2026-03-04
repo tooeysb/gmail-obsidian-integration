@@ -23,7 +23,9 @@ class GuardianEvent(Base):
     __tablename__ = "guardian_events"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    event_type = Column(String(50), nullable=False)  # stuck_detected, job_killed, scan_restarted, error
+    event_type = Column(
+        String(50), nullable=False
+    )  # stuck_detected, job_killed, scan_restarted, error
     description = Column(Text, nullable=False)
     job_id = Column(UUID(as_uuid=True), nullable=True)  # Related job if applicable
     event_metadata = Column(JSON, nullable=True)  # Additional context

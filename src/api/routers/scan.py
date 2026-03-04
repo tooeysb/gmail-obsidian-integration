@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -90,7 +90,7 @@ async def start_scan(
         .filter(
             GmailAccount.user_id == uuid.UUID(request.user_id),
             GmailAccount.account_label.in_(account_labels),
-            GmailAccount.is_active == True,
+            GmailAccount.is_active is True,
         )
         .all()
     )
@@ -135,7 +135,7 @@ async def start_scan(
 
     except Exception as e:
         logger.error("Error starting scan: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to start scan")
+        raise HTTPException(status_code=500, detail="Failed to start scan") from None
 
 
 @router.get("/status/{job_id}", response_model=JobStatusResponse)
@@ -153,9 +153,7 @@ async def get_job_status(job_id: str, db: Session = Depends(get_sync_db)) -> Job
     # Try to find job in database by celery_task_id or id
     job = (
         db.query(SyncJob)
-        .filter(
-            (SyncJob.celery_task_id == job_id) | (SyncJob.id == uuid.UUID(job_id))
-        )
+        .filter((SyncJob.celery_task_id == job_id) | (SyncJob.id == uuid.UUID(job_id)))
         .first()
     )
 
@@ -258,7 +256,7 @@ async def get_job_status(job_id: str, db: Session = Depends(get_sync_db)) -> Job
 
     except Exception as e:
         logger.error("Error getting job status: %s", str(e))
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Job not found") from None
 
 
 @router.post("/cancel/{job_id}")
@@ -278,9 +276,7 @@ async def cancel_job(job_id: str, db: Session = Depends(get_sync_db)) -> dict[st
     # Find job in database
     job = (
         db.query(SyncJob)
-        .filter(
-            (SyncJob.celery_task_id == job_id) | (SyncJob.id == uuid.UUID(job_id))
-        )
+        .filter((SyncJob.celery_task_id == job_id) | (SyncJob.id == uuid.UUID(job_id)))
         .first()
     )
 
@@ -288,9 +284,7 @@ async def cancel_job(job_id: str, db: Session = Depends(get_sync_db)) -> dict[st
         raise HTTPException(status_code=404, detail="Job not found")
 
     if job.status not in ["queued", "running"]:
-        raise HTTPException(
-            status_code=400, detail=f"Cannot cancel job with status: {job.status}"
-        )
+        raise HTTPException(status_code=400, detail=f"Cannot cancel job with status: {job.status}")
 
     # Revoke Celery task
     try:
@@ -312,7 +306,7 @@ async def cancel_job(job_id: str, db: Session = Depends(get_sync_db)) -> dict[st
 
     except Exception as e:
         logger.error("Error cancelling job: %s", str(e))
-        raise HTTPException(status_code=500, detail="Failed to cancel job")
+        raise HTTPException(status_code=500, detail="Failed to cancel job") from None
 
 
 @router.get("/results/{job_id}")

@@ -1,6 +1,6 @@
 """Tests for the HTML digest email renderer."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.services.news.digest import (
     ArticleSummary,
@@ -30,7 +30,7 @@ def _sample_article(
 class TestDailyRenderer:
     def test_subject_includes_counts_and_date(self):
         data = DailyDigestData(
-            date=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            date=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=15,
             companies_mentioned=5,
         )
@@ -41,7 +41,7 @@ class TestDailyRenderer:
 
     def test_html_contains_article_titles(self):
         data = DailyDigestData(
-            date=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            date=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=1,
             companies_mentioned=1,
             top_articles=[_sample_article()],
@@ -58,7 +58,7 @@ class TestDailyRenderer:
 
     def test_html_contains_category_badges(self):
         data = DailyDigestData(
-            date=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            date=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=1,
             top_articles=[_sample_article(category="expansion")],
         )
@@ -67,7 +67,7 @@ class TestDailyRenderer:
 
     def test_html_contains_relevance_score(self):
         data = DailyDigestData(
-            date=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            date=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=1,
             top_articles=[_sample_article(score=0.92)],
         )
@@ -76,7 +76,7 @@ class TestDailyRenderer:
 
     def test_html_contains_source_breakdown(self):
         data = DailyDigestData(
-            date=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            date=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=3,
             source_breakdown={"google_news": 2, "enr": 1},
         )
@@ -86,7 +86,7 @@ class TestDailyRenderer:
 
     def test_html_is_valid_structure(self):
         data = DailyDigestData(
-            date=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            date=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=1,
             top_articles=[_sample_article()],
         )
@@ -99,8 +99,8 @@ class TestDailyRenderer:
 class TestWeeklyRenderer:
     def test_subject_includes_date_range(self):
         data = WeeklyDigestData(
-            week_start=datetime(2026, 2, 25, tzinfo=timezone.utc),
-            week_end=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            week_start=datetime(2026, 2, 25, tzinfo=UTC),
+            week_end=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=42,
         )
         subject, _ = render_weekly_digest(data)
@@ -110,8 +110,8 @@ class TestWeeklyRenderer:
 
     def test_html_contains_company_table(self):
         data = WeeklyDigestData(
-            week_start=datetime(2026, 2, 25, tzinfo=timezone.utc),
-            week_end=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            week_start=datetime(2026, 2, 25, tzinfo=UTC),
+            week_end=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=5,
             top_companies=[("Turner Construction", 3), ("Kiewit Corp.", 2)],
         )
@@ -122,8 +122,8 @@ class TestWeeklyRenderer:
 
     def test_html_contains_category_badges(self):
         data = WeeklyDigestData(
-            week_start=datetime(2026, 2, 25, tzinfo=timezone.utc),
-            week_end=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            week_start=datetime(2026, 2, 25, tzinfo=UTC),
+            week_end=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=2,
             category_breakdown={"project_win": 2},
         )
@@ -132,8 +132,8 @@ class TestWeeklyRenderer:
 
     def test_html_contains_draft_stats(self):
         data = WeeklyDigestData(
-            week_start=datetime(2026, 2, 25, tzinfo=timezone.utc),
-            week_end=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            week_start=datetime(2026, 2, 25, tzinfo=UTC),
+            week_end=datetime(2026, 3, 4, tzinfo=UTC),
             total_articles=10,
             draft_stats={"pending": 5, "sent": 3},
         )

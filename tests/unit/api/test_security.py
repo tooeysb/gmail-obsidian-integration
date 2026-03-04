@@ -17,7 +17,6 @@ from src.core.config import settings
 from src.core.database import get_sync_db
 from src.models.user import User
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -31,6 +30,7 @@ def _make_mock_db(mock_user: MagicMock | None = None) -> MagicMock:
     get_current_user resolves successfully; otherwise .first() returns None.
     """
     from unittest.mock import MagicMock
+
     from sqlalchemy.orm import Session
 
     db = MagicMock(spec=Session)
@@ -250,9 +250,10 @@ class TestPublicEndpoints:
         since the mock DB and Redis will not be available in unit tests.
         """
         response = unauthed_client.get("/health")
-        assert response.status_code in (200, 503), (
-            f"Expected 200 or 503 from /health, got {response.status_code}"
-        )
+        assert response.status_code in (
+            200,
+            503,
+        ), f"Expected 200 or 503 from /health, got {response.status_code}"
 
     def test_root_is_public(self, unauthed_client: TestClient):
         """GET / redirects to /crm without any API key."""

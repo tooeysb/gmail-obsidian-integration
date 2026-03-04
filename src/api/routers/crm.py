@@ -4,7 +4,6 @@ CRM API routes for contact and company management.
 
 import re
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
@@ -21,6 +20,7 @@ from src.models.email import Email
 from src.models.email_participant import EmailParticipant
 from src.models.relationship_profile import RelationshipProfile
 from src.models.user import User
+from src.services.news.company_names import SKIP_NAMES, clean_company_name
 
 _logger = get_logger(__name__)
 
@@ -65,19 +65,19 @@ class ContactSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    name: Optional[str] = None
+    name: str | None = None
     email: str
-    phone: Optional[str] = None
-    title: Optional[str] = None
-    contact_type: Optional[str] = None
+    phone: str | None = None
+    title: str | None = None
+    contact_type: str | None = None
     is_vip: bool = False
     email_count: int = 0
     tags: list[str] = []
-    relationship_context: Optional[str] = None
-    company_id: Optional[str] = None
-    company_name: Optional[str] = None
-    last_contact_at: Optional[str] = None
-    created_at: Optional[str] = None
+    relationship_context: str | None = None
+    company_id: str | None = None
+    company_name: str | None = None
+    last_contact_at: str | None = None
+    created_at: str | None = None
 
 
 class CompanySummary(BaseModel):
@@ -85,26 +85,26 @@ class CompanySummary(BaseModel):
 
     id: str
     name: str
-    domain: Optional[str] = None
-    industry: Optional[str] = None
-    company_type: Optional[str] = None
-    account_tier: Optional[str] = None
-    arr: Optional[float] = None
-    revenue_segment: Optional[str] = None
-    billing_state: Optional[str] = None
+    domain: str | None = None
+    industry: str | None = None
+    company_type: str | None = None
+    account_tier: str | None = None
+    arr: float | None = None
+    revenue_segment: str | None = None
+    billing_state: str | None = None
     contact_count: int = 0
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 class EmailSummary(BaseModel):
     id: str
-    subject: Optional[str] = None
+    subject: str | None = None
     date: str
-    sender_name: Optional[str] = None
+    sender_name: str | None = None
     sender_email: str
-    summary: Optional[str] = None
+    summary: str | None = None
     has_attachments: bool = False
-    direction: Optional[str] = None
+    direction: str | None = None
 
 
 class RelationshipProfileSummary(BaseModel):
@@ -115,33 +115,33 @@ class RelationshipProfileSummary(BaseModel):
     total_email_count: int = 0
     sent_count: int = 0
     received_count: int = 0
-    first_exchange_date: Optional[str] = None
-    last_exchange_date: Optional[str] = None
+    first_exchange_date: str | None = None
+    last_exchange_date: str | None = None
     thread_count: int = 0
-    avg_response_time_hours: Optional[float] = None
-    profile_data: Optional[dict] = None
-    profiled_at: Optional[str] = None
+    avg_response_time_hours: float | None = None
+    profile_data: dict | None = None
+    profiled_at: str | None = None
 
 
 class ContactUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    title: Optional[str] = None
-    phone: Optional[str] = None
-    contact_type: Optional[str] = None
-    is_vip: Optional[bool] = None
-    tags: Optional[list[str]] = None
-    notes: Optional[str] = None
-    relationship_context: Optional[str] = None
-    company_id: Optional[str] = None
-    personal_email: Optional[str] = None
+    name: str | None = None
+    title: str | None = None
+    phone: str | None = None
+    contact_type: str | None = None
+    is_vip: bool | None = None
+    tags: list[str] | None = None
+    notes: str | None = None
+    relationship_context: str | None = None
+    company_id: str | None = None
+    personal_email: str | None = None
 
 
 class CompanyUpdateRequest(BaseModel):
-    notes: Optional[str] = None
-    company_type: Optional[str] = None
-    account_tier: Optional[str] = None
-    industry: Optional[str] = None
-    news_search_override: Optional[str] = None
+    notes: str | None = None
+    company_type: str | None = None
+    account_tier: str | None = None
+    industry: str | None = None
+    news_search_override: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ def crm_dashboard(user: User = Depends(get_current_user), db: Session = Depends(
     total_emails = db.query(func.count(Email.id)).filter(Email.user_id == uid).scalar() or 0
     vip_count = (
         db.query(func.count(Contact.id))
-        .filter(Contact.user_id == uid, Contact.is_vip == True)
+        .filter(Contact.user_id == uid, Contact.is_vip is True)
         .scalar()
         or 0
     )
@@ -332,13 +332,13 @@ def crm_dashboard(user: User = Depends(get_current_user), db: Session = Depends(
 def list_contacts(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    search: Optional[str] = Query(None),
+    search: str | None = Query(None),
     sort_by: str = Query("email_count"),
     sort_dir: str = Query("desc"),
-    is_vip: Optional[bool] = Query(None),
-    contact_type: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None, description="Comma-separated tags"),
-    company_id: Optional[str] = Query(None),
+    is_vip: bool | None = Query(None),
+    contact_type: str | None = Query(None),
+    tags: str | None = Query(None, description="Comma-separated tags"),
+    company_id: str | None = Query(None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_sync_db),
 ):
@@ -617,11 +617,11 @@ def list_contact_emails(
 def list_companies(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    search: Optional[str] = Query(None),
+    search: str | None = Query(None),
     sort_by: str = Query("arr"),
     sort_dir: str = Query("desc"),
-    company_type: Optional[str] = Query(None),
-    account_tier: Optional[str] = Query(None),
+    company_type: str | None = Query(None),
+    account_tier: str | None = Query(None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_sync_db),
 ):
@@ -1047,8 +1047,8 @@ def get_discovered_contacts(
 
 class AddContactRequest(BaseModel):
     email: str
-    name: Optional[str] = None
-    title: Optional[str] = None
+    name: str | None = None
+    title: str | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1218,8 +1218,6 @@ def global_search(
 # GET /reports/challenging-names
 # ---------------------------------------------------------------------------
 
-from src.services.news.company_names import SKIP_NAMES, clean_company_name
-
 
 @router.get("/reports/challenging-names")
 def report_challenging_names(
@@ -1248,12 +1246,14 @@ def report_challenging_names(
             reason = "generic_name"
 
         if reason:
-            results.append({
-                "id": str(c.id),
-                "name": c.name,
-                "clean_name": clean,
-                "reason": reason,
-            })
+            results.append(
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "clean_name": clean,
+                    "reason": reason,
+                }
+            )
 
     return {"items": results, "total": len(results)}
 
@@ -1273,10 +1273,7 @@ def report_companies_without_people(
 
     # Subquery: company IDs that have at least one contact
     has_contacts_sq = (
-        db.query(Contact.company_id)
-        .filter(Contact.company_id.isnot(None))
-        .distinct()
-        .subquery()
+        db.query(Contact.company_id).filter(Contact.company_id.isnot(None)).distinct().subquery()
     )
 
     companies = (
@@ -1378,19 +1375,11 @@ def merge_company(
     if target_uuid == source_uuid:
         raise HTTPException(status_code=400, detail="Cannot merge a company into itself")
 
-    target = (
-        db.query(Company)
-        .filter(Company.id == target_uuid, Company.user_id == uid)
-        .first()
-    )
+    target = db.query(Company).filter(Company.id == target_uuid, Company.user_id == uid).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target company not found")
 
-    source = (
-        db.query(Company)
-        .filter(Company.id == source_uuid, Company.user_id == uid)
-        .first()
-    )
+    source = db.query(Company).filter(Company.id == source_uuid, Company.user_id == uid).first()
     if not source:
         raise HTTPException(status_code=404, detail="Source company not found")
 
@@ -1403,18 +1392,14 @@ def merge_company(
 
     # 2. Move news items — handle unique constraint (company_id, source_url)
     # Get URLs already on target
-    target_urls = set(
+    target_urls = {
         row[0]
         for row in db.query(CompanyNewsItem.source_url)
         .filter(CompanyNewsItem.company_id == target_uuid)
         .all()
-    )
+    }
 
-    source_news = (
-        db.query(CompanyNewsItem)
-        .filter(CompanyNewsItem.company_id == source_uuid)
-        .all()
-    )
+    source_news = db.query(CompanyNewsItem).filter(CompanyNewsItem.company_id == source_uuid).all()
 
     news_moved = 0
     news_dupes = 0
@@ -1439,14 +1424,17 @@ def merge_company(
 
     _logger.info(
         "Merged company %s into %s: %d contacts, %d news (%d dupes), %d enrichments",
-        source_uuid, target_uuid, contacts_moved, news_moved, news_dupes, enrichments_moved,
+        source_uuid,
+        target_uuid,
+        contacts_moved,
+        news_moved,
+        news_dupes,
+        enrichments_moved,
     )
 
     # Re-query target with contact count
     contact_count = (
-        db.query(func.count(Contact.id))
-        .filter(Contact.company_id == target_uuid)
-        .scalar()
+        db.query(func.count(Contact.id)).filter(Contact.company_id == target_uuid).scalar()
     )
 
     return {

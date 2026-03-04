@@ -120,9 +120,7 @@ def _render_source_breakdown(source_breakdown: dict[str, int]) -> str:
 def _render_article_row(article: ArticleSummary) -> str:
     badge = _category_badge(article.category)
     rel_color = _relevance_color(article.relevance_score)
-    rel_text = (
-        f"{int(article.relevance_score * 100)}%" if article.relevance_score else ""
-    )
+    rel_text = f"{int(article.relevance_score * 100)}%" if article.relevance_score else ""
     source = _source_label(article.source_type)
 
     return f"""\
@@ -193,7 +191,7 @@ def render_daily_digest(data: DailyDigestData) -> tuple[str, str]:
                 f"</div>"
             )
         company_html = (
-            f'<h2 style="margin:24px 0 12px;font-size:16px;color:#1F2937;">By Company</h2>'
+            '<h2 style="margin:24px 0 12px;font-size:16px;color:#1F2937;">By Company</h2>'
             + "".join(sections)
         )
 

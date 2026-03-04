@@ -3,7 +3,7 @@ Unit tests for Gmail API client.
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from googleapiclient.errors import HttpError
@@ -68,8 +68,10 @@ class TestGmailClientInit:
 
     def test_init_with_credentials(self, mock_credentials, mock_rate_limiter):
         """Test client initialization with credentials."""
-        with patch("src.integrations.gmail.client.build"), \
-             patch("src.integrations.gmail.client.Credentials") as mock_creds_class:
+        with (
+            patch("src.integrations.gmail.client.build"),
+            patch("src.integrations.gmail.client.Credentials") as mock_creds_class,
+        ):
             mock_creds = MagicMock()
             mock_creds.expired = False
             mock_creds_class.return_value = mock_creds
@@ -85,9 +87,11 @@ class TestGmailClientInit:
 
     def test_init_without_rate_limiter(self, mock_credentials):
         """Test client creates default rate limiter if not provided."""
-        with patch("src.integrations.gmail.client.build"), \
-             patch("src.integrations.gmail.client.Credentials"), \
-             patch("src.integrations.gmail.client.GmailRateLimiter") as mock_limiter_class:
+        with (
+            patch("src.integrations.gmail.client.build"),
+            patch("src.integrations.gmail.client.Credentials"),
+            patch("src.integrations.gmail.client.GmailRateLimiter") as mock_limiter_class,
+        ):
             mock_limiter = MagicMock()
             mock_limiter_class.return_value = mock_limiter
 
@@ -303,15 +307,21 @@ class TestFetchMessageBatch:
         def execute_batch():
             # First message succeeds, second fails
             callback1 = mock_batch.add.call_args_list[0][1]["callback"]
-            callback1("msg1", {
-                "id": "msg1",
-                "threadId": "thread1",
-                "payload": {"headers": [
-                    {"name": "From", "value": "sender@example.com"},
-                    {"name": "Subject", "value": "Test"},
-                    {"name": "Date", "value": "Mon, 1 Jan 2024 12:00:00 +0000"},
-                ]},
-            }, None)
+            callback1(
+                "msg1",
+                {
+                    "id": "msg1",
+                    "threadId": "thread1",
+                    "payload": {
+                        "headers": [
+                            {"name": "From", "value": "sender@example.com"},
+                            {"name": "Subject", "value": "Test"},
+                            {"name": "Date", "value": "Mon, 1 Jan 2024 12:00:00 +0000"},
+                        ]
+                    },
+                },
+                None,
+            )
 
             callback2 = mock_batch.add.call_args_list[1][1]["callback"]
             callback2("msg2", None, Exception("API Error"))
