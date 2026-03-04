@@ -58,7 +58,7 @@ class NewsPageDiscoveryService:
     def __init__(self, db: Session):
         self.db = db
         self.client = httpx.Client(
-            timeout=15.0,
+            timeout=8.0,
             follow_redirects=True,
             headers={"User-Agent": "Mozilla/5.0 (compatible; CRM-NewsBot/1.0)"},
         )
@@ -73,11 +73,24 @@ class NewsPageDiscoveryService:
         # Require at least 2 indicators to avoid false positives
         return matches >= 2
 
+    def _check_domain_reachable(self, domain: str) -> bool:
+        """Quick HEAD check to see if domain resolves and responds."""
+        try:
+            resp = self.client.head(f"https://{domain}", timeout=5.0)
+            return resp.status_code < 500
+        except httpx.HTTPError:
+            return False
+
     def discover_for_company(self, company: Company, dry_run: bool = False) -> str | None:
         """
         Try common URL paths for a company domain. Return first valid news page URL.
         """
         if not company.domain:
+            return None
+
+        # Quick reachability check — skip all paths if domain is down
+        if not self._check_domain_reachable(company.domain):
+            logger.debug("Domain unreachable: %s", company.domain)
             return None
 
         base_url = f"https://{company.domain}"
@@ -95,21 +108,24 @@ class NewsPageDiscoveryService:
             except httpx.HTTPError:
                 continue
 
-            # Be polite — short delay between attempts on same domain
-            time.sleep(0.3)
-
         # No news page found
         logger.debug("No news page found for %s (%s)", company.name, company.domain)
         return None
 
-    def discover_all(self, user_id: str, limit: int | None = None, dry_run: bool = False) -> dict:
+    def discover_all(
+        self, user_id: str, limit: int | None = None, dry_run: bool = False
+    ) -> dict:
         """
         Run discovery for all companies without a news_page_url.
 
+        Fetches company IDs first, then processes each with a fresh DB query
+        to avoid Supabase connection timeouts on long-running operations.
+
         Returns stats dict: {total, discovered, failed, skipped}
         """
+        # Fetch only IDs to avoid holding ORM objects across long HTTP operations
         query = (
-            self.db.query(Company)
+            self.db.query(Company.id)
             .filter(
                 Company.user_id == user_id,
                 Company.domain.isnot(None),
@@ -123,10 +139,16 @@ class NewsPageDiscoveryService:
         if limit:
             query = query.limit(limit)
 
-        companies = query.all()
-        stats = {"total": len(companies), "discovered": 0, "failed": 0, "skipped": 0}
+        company_ids = [row[0] for row in query.all()]
+        stats = {"total": len(company_ids), "discovered": 0, "failed": 0, "skipped": 0}
 
-        for i, company in enumerate(companies):
+        for i, company_id in enumerate(company_ids):
+            # Fresh query per company to avoid stale connections
+            company = self.db.get(Company, company_id)
+            if not company:
+                stats["skipped"] += 1
+                continue
+
             logger.info(
                 "[%d/%d] Discovering news page for %s (%s)",
                 i + 1,
@@ -143,11 +165,18 @@ class NewsPageDiscoveryService:
                 if not dry_run:
                     company.news_scrape_enabled = False
 
-            # Rate limit between companies
-            time.sleep(1.0)
+            # Commit per-company to avoid Supabase connection timeout
+            if not dry_run:
+                try:
+                    self.db.commit()
+                except Exception:
+                    logger.warning("DB commit failed for %s, reconnecting", company.name)
+                    self.db.rollback()
+                    # Force session to reconnect on next use
+                    self.db.close()
 
-        if not dry_run:
-            self.db.commit()
+            # Brief pause between companies
+            time.sleep(0.5)
 
         logger.info("Discovery complete: %s", stats)
         return stats
