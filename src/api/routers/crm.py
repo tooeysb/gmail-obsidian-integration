@@ -277,13 +277,19 @@ def crm_dashboard(user: User = Depends(get_current_user), db: Session = Depends(
         _serialize_contact(c, c.company.name if c.company else None) for c in top_contacts_q
     ]
 
-    # Recent 20 emails involving CRM contacts
+    # Recent 20 emails involving CRM contacts (EXISTS avoids costly DISTINCT on join)
+    contact_link = (
+        db.query(EmailParticipant.email_id)
+        .filter(
+            EmailParticipant.email_id == Email.id,
+            EmailParticipant.contact_id.isnot(None),
+        )
+        .exists()
+    )
     recent_emails_q = (
         db.query(Email)
-        .join(EmailParticipant, EmailParticipant.email_id == Email.id)
-        .filter(Email.user_id == uid, EmailParticipant.contact_id.isnot(None))
+        .filter(Email.user_id == uid, contact_link)
         .order_by(Email.date.desc())
-        .distinct()
         .limit(20)
         .all()
     )
@@ -1212,29 +1218,7 @@ def global_search(
 # GET /reports/challenging-names
 # ---------------------------------------------------------------------------
 
-# Mirrors the skip logic from backfill_company_news.py
-_SKIP_NAMES = {
-    "target", "compass", "summit", "frontier", "core", "legacy", "pinnacle",
-    "premier", "sterling", "venture", "delta", "granite", "united", "national",
-    "american", "pacific", "western", "southern", "central", "modern", "royal",
-    "global", "metro", "universal", "general", "continental", "standard",
-    "classic", "executive", "commercial",
-}
-
-_SUFFIXES = [
-    " - hq", " - headquarters", " inc.", " inc", " corp.", " corp",
-    " llc", " llp", " ltd", " co.", " co", " group", " company", " corporation",
-]
-
-
-def _clean_name(name: str) -> str:
-    clean = name.strip()
-    lower = clean.lower()
-    for suffix in _SUFFIXES:
-        if lower.endswith(suffix):
-            clean = clean[: -len(suffix)].strip()
-            lower = clean.lower()
-    return clean
+from src.services.news.company_names import SKIP_NAMES, clean_company_name
 
 
 @router.get("/reports/challenging-names")
@@ -1256,11 +1240,11 @@ def report_challenging_names(
 
     results = []
     for c in companies:
-        clean = _clean_name(c.name)
+        clean = clean_company_name(c.name)
         reason = None
         if len(clean) <= 3:
             reason = "too_short"
-        elif clean.lower() in _SKIP_NAMES:
+        elif clean.lower() in SKIP_NAMES:
             reason = "generic_name"
 
         if reason:
@@ -1323,10 +1307,6 @@ def report_companies_without_people(
 # ---------------------------------------------------------------------------
 # POST /companies/{company_id}/scan-emails
 # ---------------------------------------------------------------------------
-
-
-class ScanEmailsRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 @router.post("/companies/{company_id}/scan-emails")

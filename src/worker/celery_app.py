@@ -49,6 +49,8 @@ if settings.redis_url.startswith("rediss://"):
 
 celery_app.conf.update(config)
 
+DEFAULT_USER_ID = "d4475ca3-0ddc-4ea0-ac89-95ae7fed1e31"
+
 # Scheduled tasks
 celery_app.conf.beat_schedule = {
     # Daily news intelligence pipeline at 5 AM UTC (1 AM EST)
@@ -56,19 +58,19 @@ celery_app.conf.beat_schedule = {
     "daily-news-pipeline": {
         "task": "run_news_pipeline",
         "schedule": crontab(hour=5, minute=0),
-        "args": ["d4475ca3-0ddc-4ea0-ac89-95ae7fed1e31"],
+        "args": [DEFAULT_USER_ID],
     },
     # Weekly rollup email: Sunday 2 PM UTC (10 AM EST)
     "weekly-news-digest": {
         "task": "send_weekly_digest",
         "schedule": crontab(hour=14, minute=0, day_of_week=0),
-        "args": ["d4475ca3-0ddc-4ea0-ac89-95ae7fed1e31"],
+        "args": [DEFAULT_USER_ID],
     },
     # Daily email sync at 3 AM UTC (11 PM EST) — fetches only new emails
     "daily-email-sync": {
         "task": "scan_gmail_task",
         "schedule": crontab(hour=3, minute=0),
-        "args": ["d4475ca3-0ddc-4ea0-ac89-95ae7fed1e31"],
+        "args": [DEFAULT_USER_ID],
     },
 }
 

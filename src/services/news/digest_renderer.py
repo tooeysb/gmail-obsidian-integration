@@ -101,6 +101,22 @@ def _source_label(source_type: str) -> str:
     return SOURCE_LABELS.get(source_type, source_type.replace("_", " ").title())
 
 
+def _render_source_breakdown(source_breakdown: dict[str, int]) -> str:
+    """Render source breakdown pills. Shared by daily and weekly digests."""
+    if not source_breakdown:
+        return ""
+    pills = " ".join(
+        f'<span style="display:inline-block;padding:3px 10px;border-radius:12px;background-color:#F3F4F6;font-size:12px;color:#374151;margin:2px;">'
+        f"{_source_label(src)}: {cnt}</span>"
+        for src, cnt in sorted(source_breakdown.items(), key=lambda x: x[1], reverse=True)
+    )
+    return (
+        f'<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb;">'
+        f'<span style="font-size:12px;color:#6B7280;font-weight:600;">Sources: </span>{pills}'
+        f"</div>"
+    )
+
+
 def _render_article_row(article: ArticleSummary) -> str:
     badge = _category_badge(article.category)
     rel_color = _relevance_color(article.relevance_score)
@@ -181,19 +197,7 @@ def render_daily_digest(data: DailyDigestData) -> tuple[str, str]:
             + "".join(sections)
         )
 
-    # Source breakdown
-    source_html = ""
-    if data.source_breakdown:
-        pills = " ".join(
-            f'<span style="display:inline-block;padding:3px 10px;border-radius:12px;background-color:#F3F4F6;font-size:12px;color:#374151;margin:2px;">'
-            f"{_source_label(src)}: {cnt}</span>"
-            for src, cnt in sorted(data.source_breakdown.items(), key=lambda x: x[1], reverse=True)
-        )
-        source_html = (
-            f'<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb;">'
-            f'<span style="font-size:12px;color:#6B7280;font-weight:600;">Sources: </span>{pills}'
-            f"</div>"
-        )
+    source_html = _render_source_breakdown(data.source_breakdown)
 
     body = stats + articles_html + company_html + source_html
     html = _html_wrapper(f"Daily News Digest - {date_str}", body)
@@ -273,19 +277,7 @@ def render_weekly_digest(data: WeeklyDigestData) -> tuple[str, str]:
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{rows}</table>'
         )
 
-    # Source breakdown
-    source_html = ""
-    if data.source_breakdown:
-        pills = " ".join(
-            f'<span style="display:inline-block;padding:3px 10px;border-radius:12px;background-color:#F3F4F6;font-size:12px;color:#374151;margin:2px;">'
-            f"{_source_label(src)}: {cnt}</span>"
-            for src, cnt in sorted(data.source_breakdown.items(), key=lambda x: x[1], reverse=True)
-        )
-        source_html = (
-            f'<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb;">'
-            f'<span style="font-size:12px;color:#6B7280;font-weight:600;">Sources: </span>{pills}'
-            f"</div>"
-        )
+    source_html = _render_source_breakdown(data.source_breakdown)
 
     body = stats + category_html + companies_html + articles_html + source_html
     html = _html_wrapper(f"Weekly News Rollup - {start_str} to {end_str}", body)

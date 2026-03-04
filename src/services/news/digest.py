@@ -8,7 +8,7 @@ from the company news intelligence pipeline.
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from src.core.logging import get_logger
@@ -86,6 +86,14 @@ class DigestService:
             published_at=item.published_at,
         )
 
+    @staticmethod
+    def _count_sources(items: list[CompanyNewsItem]) -> dict[str, int]:
+        """Count articles by source type."""
+        breakdown: dict[str, int] = {}
+        for item in items:
+            breakdown[item.source_type] = breakdown.get(item.source_type, 0) + 1
+        return breakdown
+
     def build_daily_digest(self, user_id: str) -> DailyDigestData:
         """Build daily digest for articles found in the last 24 hours."""
         now = datetime.now(timezone.utc)
@@ -108,16 +116,19 @@ class DigestService:
         if not items:
             return data
 
-        # Top articles by relevance score
-        scored = [i for i in items if i.analysis and i.analysis.get("relevance_score")]
-        scored.sort(key=lambda i: i.analysis["relevance_score"], reverse=True)
-        data.top_articles = [self._to_article_summary(i) for i in scored[:10]]
+        # Build ArticleSummary objects once, reuse for top_articles and by_company
+        summaries = [self._to_article_summary(i) for i in items]
+        scored_pairs = [
+            (s, i) for s, i in zip(summaries, items)
+            if i.analysis and i.analysis.get("relevance_score")
+        ]
+        scored_pairs.sort(key=lambda p: p[1].analysis["relevance_score"], reverse=True)
+        data.top_articles = [s for s, _ in scored_pairs[:10]]
 
         # Group by company
         company_groups: dict[str, list[ArticleSummary]] = {}
-        for item in items:
-            name = item.company.name if item.company else "Unknown"
-            company_groups.setdefault(name, []).append(self._to_article_summary(item))
+        for summary in summaries:
+            company_groups.setdefault(summary.company_name, []).append(summary)
 
         data.companies_mentioned = len(company_groups)
         data.by_company = sorted(
@@ -126,32 +137,19 @@ class DigestService:
             reverse=True,
         )
 
-        # Source breakdown
-        for item in items:
-            data.source_breakdown[item.source_type] = (
-                data.source_breakdown.get(item.source_type, 0) + 1
-            )
+        data.source_breakdown = self._count_sources(items)
 
-        # Draft stats
-        data.new_drafts = (
-            self.db.query(func.count(DraftSuggestion.id))
-            .filter(
-                DraftSuggestion.user_id == user_id,
-                DraftSuggestion.created_at >= since,
+        # Draft stats — single query with conditional counts
+        draft_row = (
+            self.db.query(
+                func.count(case((DraftSuggestion.created_at >= since, 1))).label("new"),
+                func.count(case((DraftSuggestion.status == "pending", 1))).label("pending"),
             )
-            .scalar()
-            or 0
+            .filter(DraftSuggestion.user_id == user_id)
+            .one()
         )
-
-        data.pending_drafts = (
-            self.db.query(func.count(DraftSuggestion.id))
-            .filter(
-                DraftSuggestion.user_id == user_id,
-                DraftSuggestion.status == "pending",
-            )
-            .scalar()
-            or 0
-        )
+        data.new_drafts = draft_row.new or 0
+        data.pending_drafts = draft_row.pending or 0
 
         return data
 
@@ -194,11 +192,7 @@ class DigestService:
         scored.sort(key=lambda i: i.analysis["relevance_score"], reverse=True)
         data.top_articles = [self._to_article_summary(i) for i in scored[:15]]
 
-        # Source breakdown
-        for item in items:
-            data.source_breakdown[item.source_type] = (
-                data.source_breakdown.get(item.source_type, 0) + 1
-            )
+        data.source_breakdown = self._count_sources(items)
 
         # Draft stats
         drafts = (

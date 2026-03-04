@@ -15,7 +15,6 @@ Usage:
 """
 
 import argparse
-import hashlib
 import re
 import time
 import uuid
@@ -23,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
 
 import feedparser
-import httpx
+from dateutil import parser as dateutil_parser
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -31,71 +30,9 @@ from src.core.database import SyncSessionLocal
 from src.core.logging import get_logger
 from src.models.company import Company
 from src.models.company_news import CompanyNewsItem
+from src.services.news.company_names import SKIP_NAMES, clean_company_name
 
 logger = get_logger(__name__)
-
-# Suffixes to strip when generating search-friendly names
-_SUFFIXES = [
-    " - hq",
-    " - headquarters",
-    " inc.",
-    " inc",
-    " corp.",
-    " corp",
-    " llc",
-    " llp",
-    " ltd",
-    " co.",
-    " co",
-    " group",
-    " company",
-    " corporation",
-]
-
-# Companies with names too generic to search reliably
-_SKIP_NAMES = {
-    "target",
-    "compass",
-    "summit",
-    "frontier",
-    "core",
-    "legacy",
-    "pinnacle",
-    "premier",
-    "sterling",
-    "venture",
-    "delta",
-    "granite",
-    "united",
-    "national",
-    "american",
-    "pacific",
-    "western",
-    "southern",
-    "central",
-    "modern",
-    "royal",
-    "global",
-    "metro",
-    "universal",
-    "general",
-    "continental",
-    "standard",
-    "classic",
-    "executive",
-    "commercial",
-}
-
-
-def _clean_company_name(name: str) -> str:
-    """Strip common suffixes to get a search-friendly company name."""
-    clean = name.strip()
-    lower = clean.lower()
-    for suffix in _SUFFIXES:
-        if lower.endswith(suffix):
-            clean = clean[: -len(suffix)].strip()
-            lower = clean.lower()
-    return clean
 
 
 def _build_search_url(company_name: str, max_age_days: int | None = None) -> str:
@@ -214,7 +151,7 @@ def backfill_company(
         clean_name = search_name  # Use override for matching too
         logger.info("Using search override: %s (for %s)", search_name, company.name)
     else:
-        clean_name = _clean_company_name(company.name)
+        clean_name = clean_company_name(company.name)
         # Use the best search name — shortest meaningful variant
         search_variants = _name_variants(clean_name)
         # Pick the shortest variant that's still >5 chars (most recognizable)
@@ -225,7 +162,7 @@ def backfill_company(
         )
 
         # Skip overly generic names
-        if clean_name.lower() in _SKIP_NAMES or search_name.lower() in _SKIP_NAMES:
+        if clean_name.lower() in SKIP_NAMES or search_name.lower() in SKIP_NAMES:
             logger.info("Skipping generic name: %s", company.name)
             return {"searched": False, "reason": "generic_name"}
 
@@ -284,8 +221,6 @@ def backfill_company(
         published_at = None
         if published:
             try:
-                from dateutil import parser as dateutil_parser
-
                 published_at = dateutil_parser.parse(published)
             except (ValueError, OverflowError):
                 pass
@@ -375,7 +310,7 @@ def main():
 
         # Build full list of all company names for ambiguity checking
         all_names_query = db.query(Company.name).filter(Company.user_id == args.user_id).all()
-        all_company_names = [_clean_company_name(row[0]) for row in all_names_query]
+        all_company_names = [clean_company_name(row[0]) for row in all_names_query]
 
         totals = {
             "processed": 0,
