@@ -46,21 +46,19 @@ class Settings(BaseSettings):
     # Gmail Accounts
     gmail_account_1_label: str = Field(default="procore-main", alias="GMAIL_ACCOUNT_1_LABEL")
     gmail_account_1_email: str = Field(default="tooey@procore.com", alias="GMAIL_ACCOUNT_1_EMAIL")
-    gmail_account_2_label: str = Field(
-        default="procore-private", alias="GMAIL_ACCOUNT_2_LABEL"
-    )
+    gmail_account_2_label: str = Field(default="procore-private", alias="GMAIL_ACCOUNT_2_LABEL")
     gmail_account_2_email: str = Field(default="2e@procore.com", alias="GMAIL_ACCOUNT_2_EMAIL")
     gmail_account_3_label: str = Field(default="personal", alias="GMAIL_ACCOUNT_3_LABEL")
-    gmail_account_3_email: str = Field(
-        default="tooey@hth-corp.com", alias="GMAIL_ACCOUNT_3_EMAIL"
-    )
+    gmail_account_3_email: str = Field(default="tooey@hth-corp.com", alias="GMAIL_ACCOUNT_3_EMAIL")
 
     # Rate Limiting
     # Gmail API quota: 15,000 QPM (250 QPS). Each messages.get = 5 quota units,
     # so max = 50 messages/sec. 40 QPS = 80% safety margin.
     gmail_rate_limit_qps: int = Field(default=40, alias="GMAIL_RATE_LIMIT_QPS")
     gmail_rate_limit_burst: int = Field(default=100, alias="GMAIL_RATE_LIMIT_BURST")
-    gmail_batch_size: int = Field(default=500, alias="GMAIL_BATCH_SIZE")  # Message ID fetch size (single API call)
+    gmail_batch_size: int = Field(
+        default=500, alias="GMAIL_BATCH_SIZE"
+    )  # Message ID fetch size (single API call)
 
     # Claude Batch Processing
     claude_batch_size: int = Field(default=100, alias="CLAUDE_BATCH_SIZE")
@@ -80,6 +78,21 @@ class Settings(BaseSettings):
     news_scrape_enabled: bool = Field(default=True, alias="NEWS_SCRAPE_ENABLED")
     news_relevance_threshold: float = Field(default=0.7, alias="NEWS_RELEVANCE_THRESHOLD")
     news_max_drafts_per_item: int = Field(default=3, alias="NEWS_MAX_DRAFTS_PER_ITEM")
+
+    # Email Digest
+    digest_enabled: bool = Field(default=False, alias="DIGEST_ENABLED")
+    digest_smtp_host: str = Field(default="smtp.gmail.com", alias="DIGEST_SMTP_HOST")
+    digest_smtp_port: int = Field(default=587, alias="DIGEST_SMTP_PORT")
+    digest_smtp_user: str = Field(default="", alias="DIGEST_SMTP_USER")
+    digest_smtp_password: str = Field(default="", alias="DIGEST_SMTP_PASSWORD")
+    digest_from_email: str = Field(default="", alias="DIGEST_FROM_EMAIL")
+    digest_to_email: str = Field(default="tooey@procore.com", alias="DIGEST_TO_EMAIL")
+
+    # SSO (cross-domain authentication with HTH Corp Portal)
+    sso_jwt_secret: str = Field(default="", alias="SSO_JWT_SECRET")
+    portal_login_url: str = Field(
+        default="https://www.hth-corp.com/auth/login", alias="PORTAL_LOGIN_URL"
+    )
 
     # Optional: Monitoring
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
