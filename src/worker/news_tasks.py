@@ -22,11 +22,18 @@ def scrape_company_news(self, user_id: str) -> dict:
         scraper = NewsScraperService(db)
         try:
             company_stats = scraper.scrape_all_companies(user_id)
+            google_stats = scraper.scrape_google_news_per_company(user_id)
             rss_stats = scraper.scrape_rss_feeds(user_id)
+            web_stats = scraper.scrape_web_feeds(user_id)
         finally:
             scraper.close()
 
-        return {"companies": company_stats, "rss": rss_stats}
+        return {
+            "companies": company_stats,
+            "google_news": google_stats,
+            "rss": rss_stats,
+            "web": web_stats,
+        }
     except Exception:
         logger.exception("scrape_company_news failed")
         raise
@@ -69,6 +76,78 @@ def generate_draft_suggestions(self, user_id: str) -> dict:
         db.close()
 
 
+@celery_app.task(bind=True, name="send_daily_digest")
+def send_daily_digest(self, user_id: str) -> dict:
+    """Build and send the daily news digest email."""
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    if not settings.digest_enabled:
+        logger.info("Digest disabled, skipping daily digest")
+        return {"status": "disabled"}
+
+    db = SessionLocal()
+    try:
+        from src.services.news.digest import DigestService
+        from src.services.news.digest_renderer import render_daily_digest
+        from src.services.news.email_sender import DigestEmailSender
+
+        data = DigestService(db).build_daily_digest(user_id)
+        if data.total_articles == 0:
+            logger.info("No articles for daily digest, skipping")
+            return {"status": "empty", "articles": 0}
+
+        subject, html = render_daily_digest(data)
+        sent = DigestEmailSender().send(settings.digest_to_email, subject, html)
+
+        return {
+            "status": "sent" if sent else "failed",
+            "articles": data.total_articles,
+            "companies": data.companies_mentioned,
+        }
+    except Exception:
+        logger.exception("send_daily_digest failed")
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, name="send_weekly_digest")
+def send_weekly_digest(self, user_id: str) -> dict:
+    """Build and send the weekly news rollup email."""
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    if not settings.digest_enabled:
+        logger.info("Digest disabled, skipping weekly digest")
+        return {"status": "disabled"}
+
+    db = SessionLocal()
+    try:
+        from src.services.news.digest import DigestService
+        from src.services.news.digest_renderer import render_weekly_digest
+        from src.services.news.email_sender import DigestEmailSender
+
+        data = DigestService(db).build_weekly_digest(user_id)
+        if data.total_articles == 0:
+            logger.info("No articles for weekly digest, skipping")
+            return {"status": "empty", "articles": 0}
+
+        subject, html = render_weekly_digest(data)
+        sent = DigestEmailSender().send(settings.digest_to_email, subject, html)
+
+        return {
+            "status": "sent" if sent else "failed",
+            "articles": data.total_articles,
+            "companies": len(data.top_companies),
+        }
+    except Exception:
+        logger.exception("send_weekly_digest failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(bind=True, name="run_news_pipeline")
 def run_news_pipeline(self, user_id: str) -> dict:
     """Run the complete news intelligence pipeline sequentially."""
@@ -83,8 +162,17 @@ def run_news_pipeline(self, user_id: str) -> dict:
     draft_result = generate_draft_suggestions(user_id)
     logger.info("Draft generation complete: %s", draft_result)
 
+    # Send daily digest (non-blocking — failures don't break pipeline)
+    try:
+        digest_result = send_daily_digest(user_id)
+        logger.info("Daily digest: %s", digest_result)
+    except Exception:
+        logger.exception("Daily digest failed (non-blocking)")
+        digest_result = {"status": "error"}
+
     return {
         "scrape": scrape_result,
         "analysis": analyze_result,
         "drafts": draft_result,
+        "digest": digest_result,
     }

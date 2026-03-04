@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from src.core.logging import get_logger
 from src.models.company import Company
 from src.models.company_news import CompanyNewsItem
-from src.services.news.feeds import RSS_FEEDS
+from src.services.news.feeds import RSS_FEEDS, WEB_FEEDS
 from src.services.news.parser import NewsPageParser
 
 logger = get_logger(__name__)
@@ -121,6 +121,221 @@ class NewsScraperService:
         logger.info("Company scraping complete: %s", stats)
         return stats
 
+    def _build_company_lookup(self, user_id: str) -> dict[str, Company]:
+        """
+        Build a lookup dict mapping name variants to Company objects.
+
+        Includes full names, domains, aliases, and shortened names
+        (strips common suffixes like Corp., Inc., LLC, etc.).
+        """
+        companies = self.db.query(Company).filter(Company.user_id == user_id).all()
+
+        lookup: dict[str, Company] = {}
+        # Common English words that are also company names — skip these to avoid
+        # false positives in article text matching
+        _stopwords = {
+            "target",
+            "columbia",
+            "summit",
+            "frontier",
+            "core",
+            "compass",
+            "legacy",
+            "pinnacle",
+            "premier",
+            "sterling",
+            "venture",
+            "delta",
+            "granite",
+            "united",
+            "national",
+            "american",
+            "pacific",
+            "western",
+            "southern",
+            "central",
+            "modern",
+            "royal",
+            "global",
+            "metro",
+            "universal",
+            "general",
+            "continental",
+            "standard",
+            "classic",
+            "executive",
+            "commercial",
+            # Multi-word names that match common construction phrases
+            "terminal construction",
+            "buffalo construction",
+            "construction partners",
+            "performance contracting",
+        }
+        # Common suffixes to strip for fuzzy name matching
+        _suffixes = [
+            " - hq",
+            " - headquarters",
+            " inc.",
+            " inc",
+            " corp.",
+            " corp",
+            " llc",
+            " llp",
+            " ltd",
+            " co.",
+            " co",
+            " group",
+            " construction",
+            " builders",
+            " building",
+            " services",
+            " management",
+            " contracting",
+            " company",
+            " corporation",
+        ]
+
+        for c in companies:
+            name_lower = c.name.lower()
+            # Skip full names that are just a stopword (e.g. "Target")
+            if name_lower not in _stopwords:
+                lookup[name_lower] = c
+
+            # Generate shortened name by stripping suffixes
+            short = name_lower
+            for suffix in _suffixes:
+                if short.endswith(suffix):
+                    short = short[: -len(suffix)].strip()
+            # Only add short name if it's meaningfully different, long enough,
+            # and not a common English word that would cause false positives
+            if short != name_lower and len(short) > 6 and short not in _stopwords:
+                lookup[short] = c
+
+            if c.domain:
+                lookup[c.domain.lower()] = c
+            if c.aliases:
+                for alias in c.aliases:
+                    lookup[alias.lower()] = c
+
+        return lookup
+
+    def _match_article_to_company(
+        self, title: str, snippet: str, lookup: dict[str, Company]
+    ) -> Company | None:
+        """Match article text against company lookup, longest match first.
+
+        Uses word-boundary matching to avoid false positives where short
+        company names (e.g. "power") match common English words.
+        """
+        import re
+
+        text = f"{title} {snippet}".lower()
+        # Sort by key length descending to prefer longer (more specific) matches
+        for name in sorted(lookup, key=len, reverse=True):
+            if len(name) <= 3:
+                continue
+            # Skip domain-style keys for text matching
+            if "." in name and "/" not in name:
+                continue
+            # Word boundary match to prevent "build" matching "builders"
+            pattern = r"\b" + re.escape(name) + r"\b"
+            if re.search(pattern, text):
+                return lookup[name]
+        return None
+
+    def scrape_google_news_per_company(self, user_id: str) -> dict:
+        """
+        For each company, fetch a targeted Google News RSS feed using the company name.
+        This catches news for companies where we couldn't find a direct news page.
+        """
+        try:
+            import feedparser
+        except ImportError:
+            logger.warning("feedparser not installed, skipping Google News per-company")
+            return {"companies_checked": 0, "new_items": 0}
+
+        from urllib.parse import quote
+
+        # Get all companies (not just ones with news pages)
+        companies = self.db.query(Company.id, Company.name).filter(Company.user_id == user_id).all()
+
+        stats = {"companies_checked": 0, "new_items": 0}
+
+        for company_id, company_name in companies:
+            # Build company-specific Google News RSS URL
+            # Use exact phrase match for multi-word names
+            search_name = company_name.split(" - ")[0].strip()  # Remove " - HQ" suffixes
+            # Remove common suffixes that would narrow results too much
+            for suffix in [" Inc.", " Inc", " LLC", " Ltd", " Corp.", " Corp", " Co."]:
+                if search_name.endswith(suffix):
+                    search_name = search_name[: -len(suffix)].strip()
+
+            if len(search_name) < 4:
+                continue
+
+            encoded = quote(f'"{search_name}"')
+            feed_url = (
+                f"https://news.google.com/rss/search?"
+                f"q={encoded}+construction&hl=en-US&gl=US&ceid=US:en&when=30d"
+            )
+
+            try:
+                feed = feedparser.parse(feed_url)
+            except Exception:
+                continue
+
+            stats["companies_checked"] += 1
+
+            for entry in feed.entries[:10]:  # Max 10 articles per company
+                title = entry.get("title", "")
+                link = entry.get("link", "")
+                summary = entry.get("summary", "")
+                published = entry.get("published", "")
+
+                if not title or not link:
+                    continue
+
+                published_at = None
+                if published:
+                    try:
+                        from dateutil import parser as dateutil_parser
+
+                        published_at = dateutil_parser.parse(published)
+                    except (ValueError, OverflowError):
+                        pass
+
+                stmt = (
+                    pg_insert(CompanyNewsItem)
+                    .values(
+                        id=uuid.uuid4(),
+                        user_id=user_id,
+                        company_id=company_id,
+                        source_url=link[:2048],
+                        source_type="google_news",
+                        title=title[:500],
+                        summary=summary[:2000] or None,
+                        published_at=published_at,
+                        status="new",
+                    )
+                    .on_conflict_do_nothing(constraint="uq_company_news_source")
+                )
+
+                result = self.db.execute(stmt)
+                if result.rowcount > 0:
+                    stats["new_items"] += 1
+
+            try:
+                self.db.commit()
+            except Exception:
+                logger.warning("Commit failed for %s, rolling back", company_name)
+                self.db.rollback()
+                self.db.close()
+
+            time.sleep(0.5)  # Rate limit Google News
+
+        logger.info("Google News per-company scraping complete: %s", stats)
+        return stats
+
     def scrape_rss_feeds(self, user_id: str) -> dict:
         """
         Scrape supplementary RSS feeds and match articles to companies.
@@ -132,18 +347,7 @@ class NewsScraperService:
             logger.warning("feedparser not installed, skipping RSS feeds")
             return {"feeds_scraped": 0, "new_items": 0, "matched": 0}
 
-        # Load all company names and domains for matching
-        companies = self.db.query(Company).filter(Company.user_id == user_id).all()
-
-        # Build lookup: lowercase name/domain -> company
-        company_lookup: dict[str, Company] = {}
-        for c in companies:
-            company_lookup[c.name.lower()] = c
-            if c.domain:
-                company_lookup[c.domain.lower()] = c
-            if c.aliases:
-                for alias in c.aliases:
-                    company_lookup[alias.lower()] = c
+        company_lookup = self._build_company_lookup(user_id)
 
         stats = {"feeds_scraped": 0, "new_items": 0, "matched": 0}
 
@@ -164,14 +368,7 @@ class NewsScraperService:
                 if not title or not link:
                     continue
 
-                # Try to match to a company
-                text_to_search = f"{title} {summary}".lower()
-                matched_company = None
-                for name, company in company_lookup.items():
-                    if len(name) > 3 and name in text_to_search:
-                        matched_company = company
-                        break
-
+                matched_company = self._match_article_to_company(title, summary, company_lookup)
                 if not matched_company:
                     continue
 
@@ -210,4 +407,63 @@ class NewsScraperService:
             self.db.commit()
 
         logger.info("RSS scraping complete: %s", stats)
+        return stats
+
+    def scrape_web_feeds(self, user_id: str) -> dict:
+        """
+        Scrape industry news websites (HTML, not RSS) and match articles to companies.
+        Returns stats: {sites_scraped, articles_found, matched, new_items}
+        """
+        company_lookup = self._build_company_lookup(user_id)
+        stats = {"sites_scraped": 0, "articles_found": 0, "matched": 0, "new_items": 0}
+
+        for feed_config in WEB_FEEDS:
+            try:
+                resp = self.client.get(feed_config["url"])
+                resp.raise_for_status()
+                stats["sites_scraped"] += 1
+            except httpx.HTTPError:
+                logger.exception("Failed to fetch web feed: %s", feed_config["name"])
+                continue
+
+            articles = self.parser.parse(resp.text, feed_config["url"])
+            stats["articles_found"] += len(articles)
+
+            for article in articles:
+                title = article.get("title", "")
+                snippet = article.get("snippet", "")
+                url = article.get("url", "")
+
+                if not title or not url:
+                    continue
+
+                matched_company = self._match_article_to_company(title, snippet, company_lookup)
+                if not matched_company:
+                    continue
+
+                stats["matched"] += 1
+
+                stmt = (
+                    pg_insert(CompanyNewsItem)
+                    .values(
+                        id=uuid.uuid4(),
+                        user_id=user_id,
+                        company_id=matched_company.id,
+                        source_url=url[:2048],
+                        source_type=feed_config["source_type"],
+                        title=title[:500],
+                        summary=snippet[:2000] or None,
+                        published_at=article.get("published_at"),
+                        status="new",
+                    )
+                    .on_conflict_do_nothing(constraint="uq_company_news_source")
+                )
+
+                result = self.db.execute(stmt)
+                if result.rowcount > 0:
+                    stats["new_items"] += 1
+
+            self.db.commit()
+
+        logger.info("Web feed scraping complete: %s", stats)
         return stats
