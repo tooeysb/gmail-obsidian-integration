@@ -545,26 +545,26 @@ def get_contact(
         sig_row = db.execute(
             text(
                 """
-                SELECT e.sender_email, e.sender_name, e.body
-                FROM emails e
-                JOIN email_participants ep ON ep.email_id = e.id
-                WHERE ep.contact_id = :cid
-                  AND ep.role = 'sender'
-                  AND e.body IS NOT NULL
-                  AND e.body != ''
-                ORDER BY e.date DESC
+                SELECT sender_email, sender_name,
+                       COALESCE(body, summary) AS sig_text
+                FROM emails
+                WHERE user_id = :uid
+                  AND LOWER(sender_email) = :contact_email
+                  AND COALESCE(body, summary) IS NOT NULL
+                  AND COALESCE(body, summary) != ''
+                ORDER BY date DESC
                 LIMIT 1
                 """
             ),
-            {"cid": str(contact.id)},
+            {"uid": str(user.id), "contact_email": contact.email.lower()},
         ).fetchone()
 
-        if sig_row and sig_row.body:
+        if sig_row and sig_row.sig_text:
             company_name = contact.company.name if contact.company else ""
             signatures = {
                 contact.email.lower(): (
                     sig_row.sender_name or contact.name or "",
-                    sig_row.body,
+                    sig_row.sig_text,
                 )
             }
             enriched = _enrich_with_haiku(signatures, company_name)

@@ -122,7 +122,7 @@ class TestContactDetailAutoEnrich:
         sig_row = MagicMock()
         sig_row.sender_email = "kasey@acme.com"
         sig_row.sender_name = "Kasey Bevans"
-        sig_row.body = "Thanks!\n\nKasey Bevans\nVP of Operations\nAcme Corp"
+        sig_row.sig_text = "Thanks!\n\nKasey Bevans\nVP of Operations\nAcme Corp"
         mock_db.execute.return_value.fetchone.return_value = sig_row
 
         mock_haiku.return_value = {
@@ -182,7 +182,7 @@ class TestContactDetailAutoEnrich:
         sig_row = MagicMock()
         sig_row.sender_email = "kasey@acme.com"
         sig_row.sender_name = "Kasey Bevans"
-        sig_row.body = "Thanks!"
+        sig_row.sig_text = "Thanks!"
         mock_db.execute.return_value.fetchone.return_value = sig_row
 
         mock_haiku.return_value = {
