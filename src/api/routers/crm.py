@@ -738,6 +738,105 @@ def get_company(
 # ---------------------------------------------------------------------------
 
 
+def _enrich_with_haiku(
+    signatures: dict[str, tuple[str, str]], company_name: str
+) -> dict[str, dict]:
+    """Use Claude Haiku to extract names, job titles, and LinkedIn URLs from email signatures.
+
+    Args:
+        signatures: {email: (sender_name, body_text)} for each person
+        company_name: the company name for context
+
+    Returns:
+        {email: {"name": str, "title": str, "linkedin_url": str}} — values are null if not found
+    """
+    import json
+    import logging
+
+    from anthropic import Anthropic
+
+    from src.core.config import settings
+
+    if not signatures:
+        return {}
+
+    logger = logging.getLogger(__name__)
+
+    # Build the prompt with all signatures (first 30 lines of each body)
+    sig_entries = []
+    for email, (name, body) in signatures.items():
+        lines = body.strip().split("\n")
+        snippet = "\n".join(lines[:30])
+        sig_entries.append(f"[{email}] Sender header name: {name}\n{snippet}")
+
+    combined = "\n---\n".join(sig_entries)
+
+    try:
+        client = Anthropic(api_key=settings.anthropic_api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            system=[
+                {
+                    "type": "text",
+                    "text": (
+                        "Extract information from email signature blocks. "
+                        f"Company: {company_name}.\n\n"
+                        "For each person, return:\n"
+                        '- "name": their proper display name in "First Last" format '
+                        "(the sender header may be in Last, First format — normalize it)\n"
+                        '- "title": their job title from the signature (null if not found)\n'
+                        '- "linkedin_url": their personal LinkedIn profile URL if present '
+                        "in the signature (null if not found — do NOT guess)\n\n"
+                        "Return ONLY valid JSON:\n"
+                        '{"email@example.com": {"name": "...", "title": "...", '
+                        '"linkedin_url": "..."}, ...}\n\n'
+                        "Only extract what is explicitly stated. Do not fabricate titles "
+                        "or LinkedIn URLs."
+                    ),
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[{"role": "user", "content": combined}],
+        )
+
+        raw = message.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+
+        result = json.loads(raw)
+        return {k.lower(): v for k, v in result.items() if isinstance(v, dict)}
+    except Exception:
+        logger.warning("Haiku enrichment failed, skipping", exc_info=True)
+        return {}
+
+
+def _build_linkedin_url(name: str | None, company_name: str) -> str | None:
+    """Build a LinkedIn search URL for a person at a company."""
+    if not name:
+        return None
+    from urllib.parse import quote
+
+    # Clean name: strip "Last, First - (Region)" format
+    clean = name.split(" - ")[0].strip()
+    # Handle "Last, First" format
+    if "," in clean:
+        parts = clean.split(",", 1)
+        clean = parts[1].strip() + " " + parts[0].strip()
+    # Strip middle initials (single letter followed by optional period)
+    clean = re.sub(r"\b[A-Z]\.\s*", "", clean).strip()
+    # Clean company name
+    co = company_name.split(" - ")[0].strip()
+    for suffix in [" Inc.", " Inc", " LLC", " Ltd", " Corp.", " Corp", " Co."]:
+        if co.endswith(suffix):
+            co = co[: -len(suffix)].strip()
+    query = quote(f"{clean} {co}")
+    return f"https://www.linkedin.com/search/results/people/?keywords={query}"
+
+
 @router.get("/companies/{company_id}/discovered-contacts")
 def get_discovered_contacts(
     company_id: str,
@@ -881,10 +980,45 @@ def get_discovered_contacts(
     # Sort by email count descending
     discovered = sorted(people.values(), key=lambda p: -p["email_count"])
 
-    # Serialize dates
+    # Enrich with job titles from signature blocks via Claude Haiku
+    sender_emails = [p["email"].lower() for p in discovered if p["name"]]
+    signatures: dict[str, tuple[str, str]] = {}
+    if sender_emails:
+        sig_rows = db.execute(
+            text(
+                """
+                SELECT DISTINCT ON (LOWER(sender_email))
+                       sender_email, body
+                FROM emails
+                WHERE user_id = :uid
+                  AND LOWER(sender_email) = ANY(:emails)
+                  AND body IS NOT NULL
+                  AND body != ''
+                ORDER BY LOWER(sender_email), date DESC
+            """
+            ),
+            {"uid": str(uid), "emails": sender_emails},
+        ).fetchall()
+
+        for row in sig_rows:
+            email_key = row.sender_email.lower().strip()
+            if email_key in people and people[email_key]["name"]:
+                signatures[email_key] = (people[email_key]["name"], row.body)
+
+    enriched = _enrich_with_haiku(signatures, company.name) if signatures else {}
+
+    # Serialize dates, apply Haiku enrichment, add LinkedIn search URLs as fallback
     for p in discovered:
         p["last_email"] = serialize_dt(p["last_email"]) if p["last_email"] else None
         p["first_email"] = serialize_dt(p["first_email"]) if p["first_email"] else None
+
+        info = enriched.get(p["email"].lower(), {})
+        # Use Haiku-extracted name if available (normalizes "Last, First" to "First Last")
+        if info.get("name"):
+            p["name"] = info["name"]
+        p["title"] = info.get("title")
+        # Use LinkedIn URL from signature if found, otherwise build a search URL
+        p["linkedin_url"] = info.get("linkedin_url") or _build_linkedin_url(p["name"], company.name)
 
     return {"discovered": discovered, "domain": domain, "total": len(discovered)}
 
@@ -897,6 +1031,7 @@ def get_discovered_contacts(
 class AddContactRequest(BaseModel):
     email: str
     name: Optional[str] = None
+    title: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -957,6 +1092,7 @@ def add_contact_to_company(
         company_id=company.id,
         email=email_lower,
         name=body.name,
+        title=body.title,
         email_count=email_count_result or 0,
         account_sources=[],
     )

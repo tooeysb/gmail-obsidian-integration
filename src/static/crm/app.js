@@ -331,7 +331,7 @@ function crmApp() {
             this.detail.discoveredContacts[idx].adding = true;
             const result = await this.apiFetch('companies/' + companyId + '/contacts', {
                 method: 'POST',
-                body: JSON.stringify({ email: person.email, name: person.name }),
+                body: JSON.stringify({ email: person.email, name: person.name, title: person.title || null }),
             });
             if (result) {
                 this.detail.discoveredContacts[idx].added = true;
