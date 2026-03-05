@@ -36,20 +36,7 @@ function crmApp() {
             search: '',
             sortBy: 'arr',
             sortDir: 'desc',
-            filters: { company_type: '', account_tier: '', enr: '' },
-        },
-
-        // No-Contact Companies
-        noContact: {
-            loading: true,
-            items: [],
-            total: 0,
-            page: 1,
-            pageSize: 50,
-            totalPages: 0,
-            search: '',
-            sortBy: 'name',
-            sortDir: 'asc',
+            filters: { company_type: '', account_tier: '', enr: '', contact_status: 'contacted' },
         },
 
         // Outreach
@@ -83,7 +70,7 @@ function crmApp() {
         },
 
         // Admin
-        admin: { selected: localStorage.getItem('crm_admin_tab') || 'reports' },
+        admin: { selected: ['reports', 'enhancements'].includes(localStorage.getItem('crm_admin_tab')) ? localStorage.getItem('crm_admin_tab') : 'reports' },
 
         // Detail panel
         detail: {
@@ -132,7 +119,6 @@ function crmApp() {
                 this.loadOutreach();
             } else if (view === 'admin') {
                 if (this.admin.selected === 'reports') this.loadReports();
-                else if (this.admin.selected === 'noContact') this.loadNoContact();
             }
         },
 
@@ -145,11 +131,18 @@ function crmApp() {
             const [view, id] = hash.split('/');
             // Backward compat: old #reports and #noContact redirect to #admin
             if (view === 'reports' || view === 'noContact') {
-                this.admin.selected = view === 'reports' ? 'reports' : 'noContact';
+                if (view === 'noContact') {
+                    // Redirect old noContact to companies with uncontacted filter
+                    this.companies.filters.contact_status = 'uncontacted';
+                    this.currentView = 'companies';
+                    window.location.hash = 'companies';
+                    this.loadCompanies();
+                    return;
+                }
+                this.admin.selected = 'reports';
                 this.currentView = 'admin';
                 window.location.hash = 'admin';
                 this.loadReports();
-                this.loadNoContact();
                 return;
             }
             if (['dashboard', 'contacts', 'companies', 'outreach', 'admin'].includes(view)) {
@@ -158,7 +151,7 @@ function crmApp() {
                 else if (view === 'contacts') this.loadContacts();
                 else if (view === 'companies') this.loadCompanies();
                 else if (view === 'outreach') this.loadOutreach();
-                else if (view === 'admin') { this.loadReports(); this.loadNoContact(); }
+                else if (view === 'admin') { this.loadReports(); }
 
                 if (id) {
                     if (view === 'companies') this.openCompanyDetail(id);
@@ -294,7 +287,12 @@ function crmApp() {
                 sort_by: this.companies.sortBy,
                 sort_dir: this.companies.sortDir,
             });
-            if (this.companies.search) params.set('search', this.companies.search);
+            if (this.companies.search) {
+                params.set('search', this.companies.search);
+                params.set('contact_filter', 'all');
+            } else {
+                params.set('contact_filter', this.companies.filters.contact_status || 'contacted');
+            }
             if (this.companies.filters.company_type) params.set('company_type', this.companies.filters.company_type);
             if (this.companies.filters.account_tier) params.set('account_tier', this.companies.filters.account_tier);
             if (this.companies.filters.enr) params.set('enr', this.companies.filters.enr);
@@ -306,27 +304,6 @@ function crmApp() {
                 this.companies.totalPages = data.total_pages || 0;
             }
             this.companies.loading = false;
-        },
-
-        // ==================== NO-CONTACT COMPANIES ====================
-        async loadNoContact() {
-            this.noContact.loading = true;
-            const params = new URLSearchParams({
-                page: this.noContact.page,
-                page_size: this.noContact.pageSize,
-                sort_by: this.noContact.sortBy,
-                sort_dir: this.noContact.sortDir,
-                no_contact: 'true',
-            });
-            if (this.noContact.search) params.set('search', this.noContact.search);
-
-            const data = await this.apiFetch('companies?' + params.toString());
-            if (data) {
-                this.noContact.items = data.items || [];
-                this.noContact.total = data.total || 0;
-                this.noContact.totalPages = data.total_pages || 0;
-            }
-            this.noContact.loading = false;
         },
 
         // ==================== DETAIL PANEL ====================
@@ -457,7 +434,6 @@ function crmApp() {
             if (result) {
                 this.closeDetail();
                 this.loadCompanies();
-                this.loadNoContact();
             }
         },
 
@@ -597,13 +573,8 @@ function crmApp() {
         async searchCompanies(query) {
             if (!query || query.length < 2) { this.companySearch.results = []; return; }
             this.companySearch.loading = true;
-            const data = await this.apiFetch('companies?search=' + encodeURIComponent(query) + '&page_size=8&no_contact=false');
-            // Also search no-contact companies
-            const data2 = await this.apiFetch('companies?search=' + encodeURIComponent(query) + '&page_size=8&no_contact=true');
-            const all = [...(data?.items || []), ...(data2?.items || [])];
-            // Dedupe by id
-            const seen = new Set();
-            this.companySearch.results = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; }).slice(0, 8);
+            const data = await this.apiFetch('companies?search=' + encodeURIComponent(query) + '&page_size=8&contact_filter=all');
+            this.companySearch.results = (data?.items || []).slice(0, 8);
             this.companySearch.loading = false;
         },
 
@@ -934,7 +905,6 @@ function crmApp() {
             }
             state.page = 1;
             if (entity === 'contacts') this.loadContacts();
-            else if (entity === 'noContact') this.loadNoContact();
             else this.loadCompanies();
         },
 

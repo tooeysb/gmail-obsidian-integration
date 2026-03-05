@@ -156,6 +156,7 @@ class ContactUpdateRequest(BaseModel):
 
 class CompanyUpdateRequest(BaseModel):
     name: str | None = None
+    domain: str | None = None
     notes: str | None = None
     company_type: str | None = None
     work_type: str | None = None
@@ -847,6 +848,7 @@ def list_companies(
     account_tier: str | None = Query(None),
     enr: str | None = Query(None),
     no_contact: bool = Query(False),
+    contact_filter: str = Query("contacted"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_sync_db),
 ):
@@ -890,13 +892,15 @@ def list_companies(
         .filter(Company.user_id == uid, Company.deleted_at.is_(None))
     )
 
-    # Filter by email activity
+    # Filter by email activity (new contact_filter takes precedence over legacy no_contact)
     if no_contact:
-        # Only companies with zero contacts AND zero discovered contacts
+        # Legacy: treat as uncontacted
         query = query.filter(cc_col == 0, dc_col == 0)
-    else:
-        # Only companies with at least some email activity
+    elif contact_filter == "uncontacted":
+        query = query.filter(cc_col == 0, dc_col == 0)
+    elif contact_filter == "contacted":
         query = query.filter(or_(cc_col > 0, dc_col > 0))
+    # contact_filter == "all" — no filter applied
 
     if search:
         pattern = f"%{search}%"

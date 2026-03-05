@@ -554,6 +554,13 @@
                             </button>
                         </div>
                         <div class="flex items-center gap-2">
+                            <select x-model="companies.filters.contact_status"
+                                @change="companies.page = 1; loadCompanies()"
+                                class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <option value="contacted">Contacted</option>
+                                <option value="all">All Companies</option>
+                                <option value="uncontacted">Uncontacted</option>
+                            </select>
                             <select x-model="companies.filters.company_type"
                                 @change="companies.page = 1; loadCompanies()"
                                 class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
@@ -945,13 +952,6 @@
                             :class="admin.selected === 'reports' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                             class="whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm transition-colors">
                             Reports
-                        </button>
-                        <button @click="admin.selected = 'noContact'; loadNoContact()"
-                            :class="admin.selected === 'noContact' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                            class="whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm transition-colors">
-                            No-Contact
-                            <span class="ml-1.5 text-xs font-normal" :class="admin.selected === 'noContact' ? 'text-primary-500' : 'text-gray-400'"
-                                x-text="'(' + formatNumber(noContact.total) + ')'"></span>
                         </button>
                         <button @click="admin.selected = 'enhancements'"
                             :class="admin.selected === 'enhancements' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
@@ -1466,162 +1466,6 @@
 
                 </div><!-- /Admin > Reports -->
 
-                <!-- ===== Admin > No-Contact ===== -->
-                <div x-show="admin.selected === 'noContact'">
-                    <div class="mb-4">
-                        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                            <div class="relative flex-1">
-                                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                </svg>
-                                <input type="text" x-model="noContact.search"
-                                    @input.debounce.300ms="noContact.page = 1; loadNoContact()"
-                                    placeholder="Search no-contact companies..."
-                                    class="w-full pl-9 pr-9 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-                                <button x-show="noContact.search" @click="noContact.search = ''; noContact.page = 1; loadNoContact()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                </button>
-                            </div>
-                            <div class="text-sm text-gray-500">
-                                <span x-text="formatNumber(noContact.total)"></span> companies with no email activity
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Loading -->
-                    <template x-if="noContact.loading">
-                        <div class="flex items-center justify-center py-20">
-                            <svg class="spinner w-6 h-6 text-primary-600" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
-                        </div>
-                    </template>
-
-                    <!-- Table -->
-                    <div x-show="!noContact.loading" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="border-b border-gray-100">
-                                        <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            <button @click="toggleSort('noContact', 'name')" class="inline-flex items-center hover:text-gray-700">
-                                                Name
-                                                <template x-if="noContact.sortBy === 'name'">
-                                                    <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
-                                                </template>
-                                            </button>
-                                        </th>
-                                        <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            <button @click="toggleSort('noContact', 'domain')" class="inline-flex items-center hover:text-gray-700">
-                                                Domain
-                                                <template x-if="noContact.sortBy === 'domain'">
-                                                    <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
-                                                </template>
-                                            </button>
-                                        </th>
-                                        <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                                            <button @click="toggleSort('noContact', 'company_type')" class="inline-flex items-center hover:text-gray-700">
-                                                Type
-                                                <template x-if="noContact.sortBy === 'company_type'">
-                                                    <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
-                                                </template>
-                                            </button>
-                                        </th>
-                                        <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                                            <button @click="toggleSort('noContact', 'account_tier')" class="inline-flex items-center hover:text-gray-700">
-                                                Tier
-                                                <template x-if="noContact.sortBy === 'account_tier'">
-                                                    <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
-                                                </template>
-                                            </button>
-                                        </th>
-                                        <th class="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            <button @click="toggleSort('noContact', 'arr')" class="inline-flex items-center hover:text-gray-700">
-                                                ARR
-                                                <template x-if="noContact.sortBy === 'arr'">
-                                                    <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
-                                                </template>
-                                            </button>
-                                        </th>
-                                        <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                                            <button @click="toggleSort('noContact', 'industry')" class="inline-flex items-center hover:text-gray-700">
-                                                Industry
-                                                <template x-if="noContact.sortBy === 'industry'">
-                                                    <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
-                                                </template>
-                                            </button>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-50">
-                                    <template x-for="c in noContact.items" :key="c.id">
-                                        <tr @click="openCompanyDetail(c.id)" class="hover:bg-gray-50 cursor-pointer transition-colors">
-                                            <td class="px-5 py-3">
-                                                <div class="min-w-0">
-                                                    <span class="text-sm font-medium text-gray-900 truncate" x-text="c.name"></span>
-                                                    <template x-if="c.source_data?.enr?.rank_2024">
-                                                        <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700"
-                                                            x-text="'ENR #' + c.source_data.enr.rank_2024"></span>
-                                                    </template>
-                                                </div>
-                                            </td>
-                                            <td class="px-5 py-3">
-                                                <span class="text-sm text-gray-500" x-text="c.domain || '-'"></span>
-                                            </td>
-                                            <td class="px-5 py-3 hidden md:table-cell">
-                                                <template x-if="c.company_type">
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                                                        :class="companyTypeBadge(c.company_type)"
-                                                        x-text="c.company_type"></span>
-                                                </template>
-                                            </td>
-                                            <td class="px-5 py-3 hidden md:table-cell">
-                                                <template x-if="c.account_tier">
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                                                        :class="tierBadge(c.account_tier)"
-                                                        x-text="c.account_tier"></span>
-                                                </template>
-                                            </td>
-                                            <td class="px-5 py-3 text-right">
-                                                <span class="text-sm font-medium tabular-nums text-gray-700" x-text="c.arr ? formatCurrency(c.arr) : '-'"></span>
-                                            </td>
-                                            <td class="px-5 py-3 hidden lg:table-cell">
-                                                <span class="text-sm text-gray-600" x-text="c.industry || '-'"></span>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Empty State -->
-                        <template x-if="!noContact.loading && noContact.items.length === 0">
-                            <div class="px-5 py-12 text-center">
-                                <svg class="mx-auto w-12 h-12 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                <p class="mt-3 text-sm text-gray-500">All companies have email activity!</p>
-                            </div>
-                        </template>
-
-                        <!-- Pagination -->
-                        <div x-show="noContact.total > 0" class="flex items-center justify-between px-5 py-3 border-t border-gray-100">
-                            <div class="text-sm text-gray-500">
-                                Showing <span x-text="((noContact.page - 1) * noContact.pageSize) + 1"></span>-<span x-text="Math.min(noContact.page * noContact.pageSize, noContact.total)"></span> of <span x-text="formatNumber(noContact.total)"></span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <button @click="noContact.page--; loadNoContact()" :disabled="noContact.page <= 1"
-                                    class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                                    Previous
-                                </button>
-                                <span class="text-sm text-gray-600">Page <span x-text="noContact.page"></span> of <span x-text="noContact.totalPages"></span></span>
-                                <button @click="noContact.page++; loadNoContact()" :disabled="noContact.page >= noContact.totalPages"
-                                    class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                                    Next
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div><!-- /Admin > No-Contact -->
 
                 <!-- ===== Admin > Future Enhancements ===== -->
                 <div x-show="admin.selected === 'enhancements'">
@@ -2157,9 +2001,22 @@
                                         <svg class="w-4 h-4" :class="detail.data.company.is_approved ? 'text-blue-500' : 'text-gray-300 hover:text-gray-400'" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                                     </button>
                                 </div>
-                                <template x-if="detail.data.company.domain">
-                                    <a :href="'https://' + detail.data.company.domain" target="_blank" rel="noopener"
-                                        class="text-sm text-primary-600 hover:text-primary-700" x-text="detail.data.company.domain"></a>
+                                <template x-if="editing.field !== 'company_domain'">
+                                    <div class="flex items-center gap-1">
+                                        <template x-if="detail.data.company.domain">
+                                            <a :href="'https://' + detail.data.company.domain" target="_blank" rel="noopener"
+                                                class="text-sm text-primary-600 hover:text-primary-700" x-text="detail.data.company.domain"></a>
+                                        </template>
+                                        <button @click="startEditing('company_domain', detail.data.company.domain || '')"
+                                            class="text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
+                                            x-text="detail.data.company.domain ? '&#9998;' : '+ Add domain'"></button>
+                                    </div>
+                                </template>
+                                <template x-if="editing.field === 'company_domain'">
+                                    <input type="text" x-model="editing.value"
+                                        @blur="saveCompanyField('domain')" @keydown.enter="saveCompanyField('domain')" @keydown.escape="cancelEditing()"
+                                        x-ref="editInput" placeholder="example.com"
+                                        class="text-sm border border-primary-300 rounded px-2 py-0.5 w-64 focus:outline-none focus:ring-1 focus:ring-primary-500">
                                 </template>
                                 <div class="mt-1 flex items-center gap-2">
                                     <template x-if="detail.data.company.linkedin_url && editing.field !== 'company_linkedin_url'">
