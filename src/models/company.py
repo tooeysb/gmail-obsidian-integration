@@ -65,7 +65,15 @@ class Company(Base, UUIDMixin, TimestampMixin):
     )
 
     company_type: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="Company type (e.g., Customer, Partner, Prospect)"
+        String(100),
+        nullable=True,
+        comment="Company type: General Contractor, Owner, Specialty Contractor",
+    )
+
+    work_type: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Type of work / market sectors (e.g., Corporate, Healthcare, Education)",
     )
 
     # Account Details

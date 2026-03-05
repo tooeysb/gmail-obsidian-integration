@@ -9,6 +9,7 @@ from src.models.company import Company
 from src.models.company_news import CompanyNewsItem
 from src.models.contact import Contact
 from src.models.contact_enrichment import ContactEnrichment
+from src.models.discovered_contact import DiscoveredContact
 from src.models.draft_suggestion import DraftSuggestion
 from src.models.email import Email, EmailTag
 from src.models.email_participant import EmailParticipant
@@ -27,6 +28,7 @@ __all__ = [
     "CompanyNewsItem",
     "Contact",
     "ContactEnrichment",
+    "DiscoveredContact",
     "DraftSuggestion",
     "Email",
     "EmailTag",

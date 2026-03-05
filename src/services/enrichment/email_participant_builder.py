@@ -7,7 +7,7 @@ import re
 import uuid as uuid_mod
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -88,6 +88,51 @@ class EmailParticipantBuilder:
             "Build complete: %d total EmailParticipant rows created from %d emails",
             total_created,
             processed,
+        )
+        return total_created
+
+    def build_for_contact(self, contact_id: UUID, contact_email: str, batch_size: int = 5000) -> int:
+        """
+        Build EmailParticipant records for a single contact.
+
+        Scans all emails matching the contact's email address and creates
+        participant records. Used when a new contact is added to the CRM.
+
+        Returns:
+            Number of EmailParticipant rows created.
+        """
+        email_lower = contact_email.lower().strip()
+        contact_lookup = {email_lower: contact_id}
+
+        # Find emails where this person is sender or recipient
+        stmt = (
+            select(Email.id, Email.sender_email, Email.recipient_emails)
+            .where(
+                Email.user_id == self.user_id,
+                or_(
+                    func.lower(Email.sender_email) == email_lower,
+                    func.lower(Email.recipient_emails).contains(email_lower),
+                ),
+            )
+            .order_by(Email.id)
+        )
+
+        total_created = 0
+        offset = 0
+
+        while True:
+            rows = self.db.execute(stmt.offset(offset).limit(batch_size)).all()
+            if not rows:
+                break
+            batch_created = self._process_batch(rows, contact_lookup)
+            total_created += batch_created
+            offset += batch_size
+
+        logger.info(
+            "Built %d EmailParticipant records for contact %s (%s)",
+            total_created,
+            contact_id,
+            contact_email,
         )
         return total_created
 

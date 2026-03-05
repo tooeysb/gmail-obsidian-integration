@@ -19,10 +19,12 @@ from src.core.logging import get_logger
 from src.core.utils import serialize_dt
 from src.models.company import Company
 from src.models.contact import Contact
+from src.models.discovered_contact import DiscoveredContact
 from src.models.email import Email
 from src.models.email_participant import EmailParticipant
 from src.models.relationship_profile import RelationshipProfile
 from src.models.user import User
+from src.services.enrichment.email_participant_builder import EmailParticipantBuilder
 from src.services.news.company_names import SKIP_NAMES, clean_company_name
 
 _logger = get_logger(__name__)
@@ -55,6 +57,8 @@ COMPANY_SORTABLE_COLUMNS: frozenset[str] = frozenset(
         "industry",
         "company_type",
         "revenue_segment",
+        "account_owner",
+        "renewal_date",
     }
 )
 
@@ -138,12 +142,15 @@ class ContactUpdateRequest(BaseModel):
     company_id: str | None = None
     personal_email: str | None = None
     linkedin_url: str | None = None
+    enrichment_status: str | None = None
+    enrichment_notes: str | None = None
 
 
 class CompanyUpdateRequest(BaseModel):
     name: str | None = None
     notes: str | None = None
     company_type: str | None = None
+    work_type: str | None = None
     account_tier: str | None = None
     industry: str | None = None
     news_search_override: str | None = None
@@ -221,6 +228,8 @@ def _serialize_contact(contact: Contact, company_name: str | None = None) -> dic
         "salesforce_id": contact.salesforce_id,
         "address": contact.address,
         "linkedin_url": contact.linkedin_url,
+        "enrichment_status": contact.enrichment_status,
+        "enrichment_notes": contact.enrichment_notes,
         "created_at": serialize_dt(contact.created_at),
         "updated_at": serialize_dt(contact.updated_at),
     }
@@ -234,6 +243,7 @@ def _serialize_company(company: Company, contact_count: int = 0) -> dict:
         "aliases": company.aliases,
         "industry": company.industry,
         "company_type": company.company_type,
+        "work_type": company.work_type,
         "billing_state": company.billing_state,
         "arr": float(company.arr) if company.arr is not None else None,
         "revenue_segment": company.revenue_segment,
@@ -393,9 +403,9 @@ def list_contacts(
         raise HTTPException(status_code=400, detail=f"Invalid sort column: {sort_by}")
     sort_column = getattr(Contact, sort_by)
     if sort_dir.lower() == "asc":
-        query = query.order_by(sort_column.asc())
+        query = query.order_by(sort_column.asc().nullslast())
     else:
-        query = query.order_by(sort_column.desc())
+        query = query.order_by(sort_column.desc().nullslast())
 
     # Pagination
     offset = (page - 1) * page_size
@@ -489,6 +499,17 @@ def get_contact(
             "profile_data": rel_profile.profile_data,
             "profiled_at": _serialize_dt(rel_profile.profiled_at),
         }
+
+    # Auto-link emails if contact has known emails but no participant records yet
+    participant_exists = (
+        db.query(EmailParticipant.id)
+        .filter(EmailParticipant.contact_id == contact.id)
+        .limit(1)
+        .first()
+    )
+    if not participant_exists and contact.email_count and contact.email_count > 0:
+        builder = EmailParticipantBuilder(user_id=uid, db=db)
+        builder.build_for_contact(contact.id, contact.email)
 
     # Recent emails via EmailParticipant (last 10)
     recent_participants = (
@@ -736,6 +757,30 @@ def list_contact_emails(
 
 
 # ---------------------------------------------------------------------------
+# POST /contacts/{id}/link-emails
+# ---------------------------------------------------------------------------
+
+
+@router.post("/contacts/{contact_id}/link-emails")
+def link_contact_emails(
+    contact_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_sync_db),
+):
+    """Build EmailParticipant records linking this contact to their existing emails."""
+    uid = user.id
+
+    contact = db.query(Contact).filter(Contact.id == contact_id, Contact.user_id == uid).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    builder = EmailParticipantBuilder(user_id=uid, db=db)
+    count = builder.build_for_contact(contact.id, contact.email)
+
+    return {"linked": count, "contact_id": str(contact.id), "email": contact.email}
+
+
+# ---------------------------------------------------------------------------
 # GET /companies
 # ---------------------------------------------------------------------------
 
@@ -749,6 +794,7 @@ def list_companies(
     sort_dir: str = Query("desc"),
     company_type: str | None = Query(None),
     account_tier: str | None = Query(None),
+    no_contact: bool = Query(False),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_sync_db),
 ):
@@ -766,11 +812,34 @@ def list_companies(
         .subquery()
     )
 
+    # Subquery for discovered_count
+    discovered_count_sq = (
+        db.query(
+            DiscoveredContact.company_id,
+            func.count(DiscoveredContact.id).label("discovered_count"),
+        )
+        .filter(DiscoveredContact.user_id == uid)
+        .group_by(DiscoveredContact.company_id)
+        .subquery()
+    )
+
+    cc_col = func.coalesce(contact_count_sq.c.contact_count, 0)
+    dc_col = func.coalesce(discovered_count_sq.c.discovered_count, 0)
+
     query = (
-        db.query(Company, func.coalesce(contact_count_sq.c.contact_count, 0).label("contact_count"))
+        db.query(Company, cc_col.label("contact_count"), dc_col.label("discovered_count"))
         .outerjoin(contact_count_sq, Company.id == contact_count_sq.c.company_id)
+        .outerjoin(discovered_count_sq, Company.id == discovered_count_sq.c.company_id)
         .filter(Company.user_id == uid)
     )
+
+    # Filter by email activity
+    if no_contact:
+        # Only companies with zero contacts AND zero discovered contacts
+        query = query.filter(cc_col == 0, dc_col == 0)
+    else:
+        # Only companies with at least some email activity
+        query = query.filter(or_(cc_col > 0, dc_col > 0))
 
     if search:
         pattern = f"%{search}%"
@@ -804,7 +873,7 @@ def list_companies(
     offset = (page - 1) * page_size
     results = query.offset(offset).limit(page_size).all()
 
-    items = [_serialize_company(company, cc) for company, cc in results]
+    items = [_serialize_company(company, cc) for company, cc, dc in results]
 
     return _paginated_response(total, page, page_size, items)
 
@@ -1336,10 +1405,12 @@ def get_discovered_contacts(
     db: Session = Depends(get_sync_db),
 ):
     """
-    Find email addresses matching a company's domain from all emails,
-    excluding people already in the CRM as contacts.
-    Searches sender_email and recipient_emails fields.
+    Return pre-discovered people matching this company's domain.
+    Reads from the discovered_contacts cache table (populated by daily cron job).
+    Haiku enrichment for job titles is applied on-demand.
     """
+    from src.models.discovered_contact import DiscoveredContact
+
     uid = user.id
 
     company = db.query(Company).filter(Company.id == company_id, Company.user_id == uid).first()
@@ -1348,132 +1419,43 @@ def get_discovered_contacts(
 
     domain = company.domain.lower().strip()
 
-    # Get existing contact emails at this company to exclude
+    # Exclude people who have since been added as CRM contacts
     existing_emails = set()
-    existing_contacts = (
-        db.query(Contact.email)
-        .filter(Contact.user_id == uid, Contact.company_id == company.id)
-        .all()
-    )
-    for (email,) in existing_contacts:
-        existing_emails.add(email.lower())
-
-    # Also get all contacts with this domain (might be assigned to different company)
-    all_domain_contacts = (
+    for (email,) in (
         db.query(Contact.email)
         .filter(Contact.user_id == uid, Contact.email.ilike(f"%@{domain}"))
         .all()
-    )
-    for (email,) in all_domain_contacts:
+    ):
         existing_emails.add(email.lower())
 
-    # Search sender_email for this domain
-    sender_rows = db.execute(
-        text(
-            """
-                SELECT sender_email, sender_name,
-                       COUNT(*) as email_count,
-                       MAX(date) as last_email,
-                       MIN(date) as first_email
-                FROM emails
-                WHERE user_id = :uid
-                  AND LOWER(sender_email) LIKE :domain_pattern
-                GROUP BY sender_email, sender_name
-                ORDER BY COUNT(*) DESC
-            """
-        ),
-        {"uid": str(uid), "domain_pattern": f"%@{domain}"},
-    ).fetchall()
+    # Read from cache table
+    rows = (
+        db.query(DiscoveredContact)
+        .filter(
+            DiscoveredContact.company_id == company.id,
+            DiscoveredContact.user_id == uid,
+        )
+        .order_by(DiscoveredContact.email_count.desc())
+        .all()
+    )
 
-    # Search recipient_emails for this domain (comma-separated field)
-    recipient_rows = db.execute(
-        text(
-            """
-                SELECT recipient_emails, COUNT(*) as email_count
-                FROM emails
-                WHERE user_id = :uid
-                  AND LOWER(recipient_emails) LIKE :domain_pattern
-                GROUP BY recipient_emails
-            """
-        ),
-        {"uid": str(uid), "domain_pattern": f"%@{domain}%"},
-    ).fetchall()
-
-    # Aggregate discovered people
-    people: dict[str, dict] = {}  # email -> {name, email_count, last_email, first_email}
-
-    # From sender_email
-    for row in sender_rows:
-        email = row.sender_email.lower().strip()
-        if email in existing_emails:
+    # Filter out people who have been added as contacts since last discovery run
+    people = []
+    for dc in rows:
+        if dc.email.lower() in existing_emails:
             continue
-        if email not in people:
-            people[email] = {
-                "email": row.sender_email.strip(),
-                "name": row.sender_name,
-                "email_count": 0,
-                "last_email": None,
-                "first_email": None,
+        people.append(
+            {
+                "email": dc.email,
+                "name": dc.name,
+                "email_count": dc.email_count,
+                "last_email": serialize_dt(dc.last_email_at),
+                "first_email": serialize_dt(dc.first_email_at),
             }
-        people[email]["email_count"] += row.email_count
-        if row.last_email:
-            cur = people[email]["last_email"]
-            if not cur or row.last_email > cur:
-                people[email]["last_email"] = row.last_email
-        if row.first_email:
-            cur = people[email]["first_email"]
-            if not cur or row.first_email < cur:
-                people[email]["first_email"] = row.first_email
-
-    # From recipient_emails (parse comma-separated)
-    email_pattern = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
-    name_email_pattern = re.compile(r'"?([^"<]*)"?\s*<([^>]+)>')
-
-    for row in recipient_rows:
-        raw = row.recipient_emails or ""
-        # Extract emails with optional names: "Name <email>" or just email
-        for match in name_email_pattern.finditer(raw):
-            raw_name = match.group(1).strip().strip(",").strip()
-            name = raw_name if raw_name else None
-            email = match.group(2).strip().lower()
-            if f"@{domain}" not in email:
-                continue
-            if email in existing_emails:
-                continue
-            if email not in people:
-                people[email] = {
-                    "email": match.group(2).strip(),
-                    "name": name,
-                    "email_count": 0,
-                    "last_email": None,
-                    "first_email": None,
-                }
-            people[email]["email_count"] += row.email_count
-            if not people[email]["name"] and name:
-                people[email]["name"] = name
-
-        # Also catch bare emails not already captured by name_email_pattern
-        for email_match in email_pattern.finditer(raw):
-            email = email_match.group(0).lower()
-            if f"@{domain}" not in email:
-                continue
-            if email in existing_emails:
-                continue
-            if email not in people:
-                people[email] = {
-                    "email": email_match.group(0),
-                    "name": None,
-                    "email_count": 0,
-                    "last_email": None,
-                    "first_email": None,
-                }
-                people[email]["email_count"] += row.email_count
-
-    # Sort by email count descending
-    discovered = sorted(people.values(), key=lambda p: -p["email_count"])
+        )
 
     # Enrich with job titles from signature blocks via Claude Haiku
-    sender_emails = [p["email"].lower() for p in discovered if p["name"]]
+    sender_emails = [p["email"].lower() for p in people if p["name"]]
     signatures: dict[str, tuple[str, str]] = {}
     if sender_emails:
         sig_rows = db.execute(
@@ -1492,27 +1474,23 @@ def get_discovered_contacts(
             {"uid": str(uid), "emails": sender_emails},
         ).fetchall()
 
+        people_lookup = {p["email"].lower(): p for p in people}
         for row in sig_rows:
             email_key = row.sender_email.lower().strip()
-            if email_key in people and people[email_key]["name"]:
-                signatures[email_key] = (people[email_key]["name"], row.body)
+            p = people_lookup.get(email_key)
+            if p and p["name"]:
+                signatures[email_key] = (p["name"], row.body)
 
     enriched = _enrich_with_haiku(signatures, company.name) if signatures else {}
 
-    # Serialize dates, apply Haiku enrichment, add LinkedIn search URLs as fallback
-    for p in discovered:
-        p["last_email"] = serialize_dt(p["last_email"]) if p["last_email"] else None
-        p["first_email"] = serialize_dt(p["first_email"]) if p["first_email"] else None
-
+    for p in people:
         info = enriched.get(p["email"].lower(), {})
-        # Use Haiku-extracted name if available (normalizes "Last, First" to "First Last")
         if info.get("name"):
             p["name"] = info["name"]
         p["title"] = info.get("title")
-        # Use LinkedIn URL from signature if found, otherwise build a search URL
         p["linkedin_url"] = info.get("linkedin_url") or _build_linkedin_url(p["name"], company.name)
 
-    return {"discovered": discovered, "domain": domain, "total": len(discovered)}
+    return {"discovered": people, "domain": domain, "total": len(people)}
 
 
 # ---------------------------------------------------------------------------
@@ -1592,6 +1570,16 @@ def add_contact_to_company(
     db.commit()
     db.refresh(contact)
 
+    # Link existing emails to this new contact via EmailParticipant
+    builder = EmailParticipantBuilder(user_id=uid, db=db)
+    participant_count = builder.build_for_contact(contact.id, contact.email)
+    _logger.info(
+        "Linked %d emails to new contact %s (%s)",
+        participant_count,
+        contact.name,
+        contact.email,
+    )
+
     return {
         "contact": {
             "id": str(contact.id),
@@ -1629,6 +1617,10 @@ def update_company(
         if field not in allowed_fields:
             raise HTTPException(status_code=400, detail=f"Field '{field}' is not updatable")
         setattr(company, field, value)
+
+    # Enforce: ENR-ranked companies are always General Contractor
+    if company.source_data and company.source_data.get("enr", {}).get("rank_2024"):
+        company.company_type = "General Contractor"
 
     db.commit()
     db.refresh(company)
@@ -1858,6 +1850,47 @@ def report_needs_browser_enrich(
 
 
 # ---------------------------------------------------------------------------
+# GET /reports/needs-human-research
+# ---------------------------------------------------------------------------
+
+
+@router.get("/reports/needs-human-research")
+def report_needs_human_research(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_sync_db),
+):
+    """Contacts flagged by enrichment automation as needing human research."""
+    uid = user.id
+
+    contacts = (
+        db.query(Contact)
+        .options(selectinload(Contact.company))
+        .filter(
+            Contact.user_id == uid,
+            Contact.enrichment_status == "needs_review",
+        )
+        .order_by(Contact.email_count.desc())
+        .limit(200)
+        .all()
+    )
+
+    results = [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "email": c.email,
+            "company_name": c.company.name if c.company else None,
+            "linkedin_url": c.linkedin_url,
+            "enrichment_notes": c.enrichment_notes,
+            "email_count": c.email_count,
+        }
+        for c in contacts
+    ]
+
+    return {"items": results, "total": len(results)}
+
+
+# ---------------------------------------------------------------------------
 # POST /companies/{company_id}/scan-emails
 # ---------------------------------------------------------------------------
 
@@ -1973,6 +2006,22 @@ def merge_company(
         .filter(ContactEnrichment.company_id == source_uuid)
         .update({"company_id": target_uuid}, synchronize_session="fetch")
     )
+
+    # 3b. Move discovered contacts (delete dupes by email)
+    target_discovered_emails = {
+        row[0]
+        for row in db.query(DiscoveredContact.email)
+        .filter(DiscoveredContact.company_id == target_uuid)
+        .all()
+    }
+    source_discovered = (
+        db.query(DiscoveredContact).filter(DiscoveredContact.company_id == source_uuid).all()
+    )
+    for dc in source_discovered:
+        if dc.email in target_discovered_emails:
+            db.delete(dc)
+        else:
+            dc.company_id = target_uuid
 
     # 4. Delete source company (cascades remaining news items + draft suggestions)
     db.delete(source)

@@ -74,5 +74,12 @@ token.json
 *.pem
 *.key
 
+# LinkedIn Enrichment
+.enrichment_state.json
+scripts/enrichment/.auth_state.json
+
+# Redis
+dump.rdb
+
 # Heroku
 .heroku/

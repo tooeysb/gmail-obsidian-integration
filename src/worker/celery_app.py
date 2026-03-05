@@ -73,6 +73,13 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=3, minute=0),
         "args": [DEFAULT_USER_ID],
     },
+    # Daily domain contact discovery at 4 AM UTC (midnight EST)
+    # Scans all emails to find people matching company domains
+    "daily-domain-discovery": {
+        "task": "discover_domain_contacts",
+        "schedule": crontab(hour=4, minute=0),
+        "args": [DEFAULT_USER_ID],
+    },
 }
 
 

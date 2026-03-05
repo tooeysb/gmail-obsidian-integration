@@ -29,6 +29,33 @@ from src.worker.phases.vault_generation import generate_vault
 logger = get_logger(__name__)
 
 
+@celery_app.task(bind=True, name="discover_domain_contacts")
+def discover_domain_contacts(self, user_id: str) -> dict:
+    """
+    Daily cron: scan all company domains against all emails
+    and rebuild the discovered_contacts cache table.
+    """
+    from src.services.enrichment.domain_discoverer import DomainContactDiscoverer
+
+    correlation_id = str(uuid.uuid4())
+    logger.info("[%s] Starting domain contact discovery for user %s", correlation_id, user_id)
+
+    db = SessionLocal()
+    try:
+        discoverer = DomainContactDiscoverer(
+            user_id=uuid.UUID(user_id),
+            db=db,
+        )
+        stats = discoverer.discover_all()
+        logger.info("[%s] Domain discovery complete: %s", correlation_id, stats)
+        return {"status": "completed", "correlation_id": correlation_id, **stats}
+    except Exception as e:
+        logger.error("[%s] Domain discovery failed: %s", correlation_id, e, exc_info=True)
+        raise
+    finally:
+        db.close()
+
+
 def get_last_processed_email_date(db: Session, account_id: uuid.UUID) -> datetime | None:
     """Get the date of the most recent processed email for an account."""
     return db.query(func.max(Email.date)).filter(Email.account_id == account_id).scalar()

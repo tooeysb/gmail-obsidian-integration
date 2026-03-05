@@ -38,6 +38,19 @@ function crmApp() {
             filters: { company_type: '', account_tier: '' },
         },
 
+        // No-Contact Companies
+        noContact: {
+            loading: true,
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: 50,
+            totalPages: 0,
+            search: '',
+            sortBy: 'name',
+            sortDir: 'asc',
+        },
+
         // Outreach
         outreach: {
             loading: true,
@@ -62,6 +75,7 @@ function crmApp() {
             companiesWithoutPeople: [],
             needsLinkedIn: [],
             needsBrowserEnrich: [],
+            needsHumanResearch: [],
         },
 
         // Detail panel
@@ -103,6 +117,8 @@ function crmApp() {
                 this.loadContacts();
             } else if (view === 'companies' && this.companies.items.length === 0) {
                 this.loadCompanies();
+            } else if (view === 'noContact') {
+                this.loadNoContact();
             } else if (view === 'outreach') {
                 this.loadOutreach();
             } else if (view === 'reports') {
@@ -117,11 +133,12 @@ function crmApp() {
                 return;
             }
             const [view, id] = hash.split('/');
-            if (['dashboard', 'contacts', 'companies', 'outreach', 'reports'].includes(view)) {
+            if (['dashboard', 'contacts', 'companies', 'noContact', 'outreach', 'reports'].includes(view)) {
                 this.currentView = view;
                 if (view === 'dashboard') this.loadDashboard();
                 else if (view === 'contacts') this.loadContacts();
                 else if (view === 'companies') this.loadCompanies();
+                else if (view === 'noContact') this.loadNoContact();
                 else if (view === 'outreach') this.loadOutreach();
                 else if (view === 'reports') this.loadReports();
 
@@ -270,6 +287,27 @@ function crmApp() {
                 this.companies.totalPages = data.total_pages || 0;
             }
             this.companies.loading = false;
+        },
+
+        // ==================== NO-CONTACT COMPANIES ====================
+        async loadNoContact() {
+            this.noContact.loading = true;
+            const params = new URLSearchParams({
+                page: this.noContact.page,
+                page_size: this.noContact.pageSize,
+                sort_by: this.noContact.sortBy,
+                sort_dir: this.noContact.sortDir,
+                no_contact: 'true',
+            });
+            if (this.noContact.search) params.set('search', this.noContact.search);
+
+            const data = await this.apiFetch('companies?' + params.toString());
+            if (data) {
+                this.noContact.items = data.items || [];
+                this.noContact.total = data.total || 0;
+                this.noContact.totalPages = data.total_pages || 0;
+            }
+            this.noContact.loading = false;
         },
 
         // ==================== DETAIL PANEL ====================
@@ -590,16 +628,18 @@ function crmApp() {
         // ==================== REPORTS ====================
         async loadReports() {
             this.reports.loading = true;
-            const [names, noPeople, needsLI, browserEnrich] = await Promise.all([
+            const [names, noPeople, needsLI, browserEnrich, humanResearch] = await Promise.all([
                 this.apiFetch('reports/challenging-names'),
                 this.apiFetch('reports/companies-without-people'),
                 this.apiFetch('reports/needs-linkedin-url'),
                 this.apiFetch('reports/needs-browser-enrich'),
+                this.apiFetch('reports/needs-human-research'),
             ]);
             if (names) this.reports.challengingNames = names.items || [];
             if (noPeople) this.reports.companiesWithoutPeople = noPeople.items || [];
             if (needsLI) this.reports.needsLinkedIn = needsLI.items || [];
             if (browserEnrich) this.reports.needsBrowserEnrich = browserEnrich.items || [];
+            if (humanResearch) this.reports.needsHumanResearch = humanResearch.items || [];
             this.reports.loading = false;
         },
 
@@ -698,6 +738,7 @@ function crmApp() {
             }
             state.page = 1;
             if (entity === 'contacts') this.loadContacts();
+            else if (entity === 'noContact') this.loadNoContact();
             else this.loadCompanies();
         },
 

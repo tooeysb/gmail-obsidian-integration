@@ -62,6 +62,11 @@
                                 class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
                                 People
                             </button>
+                            <button @click="navigate('noContact')"
+                                :class="currentView === 'noContact' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                                No-Contact
+                            </button>
                             <button @click="navigate('reports')"
                                 :class="currentView === 'reports' ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
                                 class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
@@ -157,6 +162,9 @@
                     <button @click="navigate('companies')"
                         :class="currentView === 'companies' ? 'bg-primary-50 text-primary-700' : 'text-gray-600'"
                         class="px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap">Companies</button>
+                    <button @click="navigate('noContact')"
+                        :class="currentView === 'noContact' ? 'bg-primary-50 text-primary-700' : 'text-gray-600'"
+                        class="px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap">No-Contact</button>
                     <button @click="navigate('outreach')"
                         :class="currentView === 'outreach' ? 'bg-primary-50 text-primary-700' : 'text-gray-600'"
                         class="px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap">Outreach</button>
@@ -442,7 +450,14 @@
                                     </th>
                                     <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Last Email Received</th>
                                     <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Last Email Sent</th>
-                                    <th class="text-center px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-12">VIP</th>
+                                    <th class="text-center px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                                        <button @click="toggleSort('contacts', 'is_vip')" class="inline-flex items-center hover:text-gray-700">
+                                            VIP
+                                            <template x-if="contacts.sortBy === 'is_vip'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="contacts.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-50">
@@ -539,10 +554,9 @@
                                 @change="companies.page = 1; loadCompanies()"
                                 class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
                                 <option value="">All Types</option>
-                                <option value="Customer">Customer</option>
-                                <option value="Prospect">Prospect</option>
-                                <option value="Partner">Partner</option>
-                                <option value="Vendor">Vendor</option>
+                                <option value="General Contractor">General Contractor</option>
+                                <option value="Owner">Owner</option>
+                                <option value="Specialty Contractor">Specialty Contractor</option>
                             </select>
                             <select x-model="companies.filters.account_tier"
                                 @change="companies.page = 1; loadCompanies()"
@@ -580,9 +594,30 @@
                                             </template>
                                         </button>
                                     </th>
-                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Industry</th>
-                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Type</th>
-                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Tier</th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                                        <button @click="toggleSort('companies', 'industry')" class="inline-flex items-center hover:text-gray-700">
+                                            Industry
+                                            <template x-if="companies.sortBy === 'industry'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="companies.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                                        <button @click="toggleSort('companies', 'company_type')" class="inline-flex items-center hover:text-gray-700">
+                                            Type
+                                            <template x-if="companies.sortBy === 'company_type'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="companies.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                                        <button @click="toggleSort('companies', 'account_tier')" class="inline-flex items-center hover:text-gray-700">
+                                            Tier
+                                            <template x-if="companies.sortBy === 'account_tier'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="companies.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
                                     <th class="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         <button @click="toggleSort('companies', 'arr')" class="inline-flex items-center hover:text-gray-700">
                                             ARR
@@ -591,9 +626,30 @@
                                             </template>
                                         </button>
                                     </th>
-                                    <th class="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">People</th>
-                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Owner</th>
-                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Renewal</th>
+                                    <th class="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                                        <button @click="toggleSort('companies', 'contact_count')" class="inline-flex items-center hover:text-gray-700">
+                                            People
+                                            <template x-if="companies.sortBy === 'contact_count'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="companies.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
+                                        <button @click="toggleSort('companies', 'account_owner')" class="inline-flex items-center hover:text-gray-700">
+                                            Owner
+                                            <template x-if="companies.sortBy === 'account_owner'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="companies.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
+                                        <button @click="toggleSort('companies', 'renewal_date')" class="inline-flex items-center hover:text-gray-700">
+                                            Renewal
+                                            <template x-if="companies.sortBy === 'renewal_date'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="companies.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-50">
@@ -678,6 +734,160 @@
                     </div>
                 </div>
             </div>
+            <!-- ==================== NO-CONTACT VIEW ==================== -->
+            <div x-show="currentView === 'noContact'">
+                <div class="mb-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div class="relative flex-1">
+                            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                            <input type="text" x-model="noContact.search"
+                                @input.debounce.300ms="noContact.page = 1; loadNoContact()"
+                                placeholder="Search no-contact companies..."
+                                class="w-full pl-9 pr-4 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            <span x-text="formatNumber(noContact.total)"></span> companies with no email activity
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading -->
+                <template x-if="noContact.loading">
+                    <div class="flex items-center justify-center py-20">
+                        <svg class="spinner w-6 h-6 text-primary-600" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                    </div>
+                </template>
+
+                <!-- Table -->
+                <div x-show="!noContact.loading" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-gray-100">
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <button @click="toggleSort('noContact', 'name')" class="inline-flex items-center hover:text-gray-700">
+                                            Name
+                                            <template x-if="noContact.sortBy === 'name'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <button @click="toggleSort('noContact', 'domain')" class="inline-flex items-center hover:text-gray-700">
+                                            Domain
+                                            <template x-if="noContact.sortBy === 'domain'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                                        <button @click="toggleSort('noContact', 'company_type')" class="inline-flex items-center hover:text-gray-700">
+                                            Type
+                                            <template x-if="noContact.sortBy === 'company_type'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                                        <button @click="toggleSort('noContact', 'account_tier')" class="inline-flex items-center hover:text-gray-700">
+                                            Tier
+                                            <template x-if="noContact.sortBy === 'account_tier'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <button @click="toggleSort('noContact', 'arr')" class="inline-flex items-center hover:text-gray-700">
+                                            ARR
+                                            <template x-if="noContact.sortBy === 'arr'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                    <th class="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                                        <button @click="toggleSort('noContact', 'industry')" class="inline-flex items-center hover:text-gray-700">
+                                            Industry
+                                            <template x-if="noContact.sortBy === 'industry'">
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path :d="noContact.sortDir === 'asc' ? 'M5 10l5-5 5 5H5z' : 'M5 10l5 5 5-5H5z'"/></svg>
+                                            </template>
+                                        </button>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <template x-for="c in noContact.items" :key="c.id">
+                                    <tr @click="openCompanyDetail(c.id)" class="hover:bg-gray-50 cursor-pointer transition-colors">
+                                        <td class="px-5 py-3">
+                                            <div class="min-w-0">
+                                                <span class="text-sm font-medium text-gray-900 truncate" x-text="c.name"></span>
+                                                <template x-if="c.source_data?.enr?.rank_2024">
+                                                    <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700"
+                                                        x-text="'ENR #' + c.source_data.enr.rank_2024"></span>
+                                                </template>
+                                            </div>
+                                        </td>
+                                        <td class="px-5 py-3">
+                                            <span class="text-sm text-gray-500" x-text="c.domain || '-'"></span>
+                                        </td>
+                                        <td class="px-5 py-3 hidden md:table-cell">
+                                            <template x-if="c.company_type">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                                    :class="companyTypeBadge(c.company_type)"
+                                                    x-text="c.company_type"></span>
+                                            </template>
+                                        </td>
+                                        <td class="px-5 py-3 hidden md:table-cell">
+                                            <template x-if="c.account_tier">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                                    :class="tierBadge(c.account_tier)"
+                                                    x-text="c.account_tier"></span>
+                                            </template>
+                                        </td>
+                                        <td class="px-5 py-3 text-right">
+                                            <span class="text-sm font-medium tabular-nums text-gray-700" x-text="c.arr ? formatCurrency(c.arr) : '-'"></span>
+                                        </td>
+                                        <td class="px-5 py-3 hidden lg:table-cell">
+                                            <span class="text-sm text-gray-600" x-text="c.industry || '-'"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State -->
+                    <template x-if="!noContact.loading && noContact.items.length === 0">
+                        <div class="px-5 py-12 text-center">
+                            <svg class="mx-auto w-12 h-12 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <p class="mt-3 text-sm text-gray-500">All companies have email activity!</p>
+                        </div>
+                    </template>
+
+                    <!-- Pagination -->
+                    <div x-show="noContact.totalPages > 1" class="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+                        <div class="text-sm text-gray-500">
+                            Showing <span x-text="((noContact.page - 1) * noContact.pageSize) + 1"></span>-<span x-text="Math.min(noContact.page * noContact.pageSize, noContact.total)"></span> of <span x-text="formatNumber(noContact.total)"></span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button @click="noContact.page--; loadNoContact()" :disabled="noContact.page <= 1"
+                                class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                Previous
+                            </button>
+                            <span class="text-sm text-gray-600">Page <span x-text="noContact.page"></span> of <span x-text="noContact.totalPages"></span></span>
+                            <button @click="noContact.page++; loadNoContact()" :disabled="noContact.page >= noContact.totalPages"
+                                class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ==================== OUTREACH VIEW ==================== -->
             <div x-show="currentView === 'outreach'">
                 <!-- Loading -->
@@ -898,6 +1108,13 @@
                             <span class="ml-1.5 text-xs font-normal" :class="reports.selected === 'browserEnrich' ? 'text-primary-500' : 'text-gray-400'"
                                 x-text="'(' + (reports.needsBrowserEnrich || []).length + ')'"></span>
                         </button>
+                        <button @click="reports.selected = 'humanResearch'"
+                            :class="reports.selected === 'humanResearch' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm transition-colors">
+                            Needs Human Research
+                            <span class="ml-1.5 text-xs font-normal" :class="reports.selected === 'humanResearch' ? 'text-primary-500' : 'text-gray-400'"
+                                x-text="'(' + (reports.needsHumanResearch || []).length + ')'"></span>
+                        </button>
                     </nav>
                 </div>
 
@@ -1102,6 +1319,55 @@
                                                     class="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
                                                     <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
                                                     Open & Enrich
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- ===== Report: Needs Human Research ===== -->
+                <div x-show="!reports.loading && reports.selected === 'humanResearch'">
+                    <p class="text-sm text-gray-500 mb-4">Contacts where automated enrichment could not confidently match a LinkedIn profile. A human needs to search for the correct profile manually.</p>
+
+                    <template x-if="(reports.needsHumanResearch || []).length === 0">
+                        <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-12 text-center">
+                            <svg class="mx-auto h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p class="mt-2 text-sm font-medium text-gray-900">No contacts need human research.</p>
+                        </div>
+                    </template>
+
+                    <template x-if="(reports.needsHumanResearch || []).length > 0">
+                        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Company</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Reason</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Emails</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="item in reports.needsHumanResearch" :key="item.id">
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-6 py-3">
+                                                <button @click="openContactDetail(item.id)" class="text-sm font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                                                    x-text="item.name || item.email"></button>
+                                            </td>
+                                            <td class="px-6 py-3 text-sm text-gray-500 hidden sm:table-cell" x-text="item.company_name || '-'"></td>
+                                            <td class="px-6 py-3 text-sm text-gray-500 hidden md:table-cell" x-text="item.enrichment_notes || '-'"></td>
+                                            <td class="px-6 py-3 text-sm text-gray-500 hidden lg:table-cell" x-text="item.email_count"></td>
+                                            <td class="px-6 py-3">
+                                                <button @click="openContactDetail(item.id)"
+                                                    class="text-xs font-medium text-primary-600 hover:text-primary-800">
+                                                    Research &rarr;
                                                 </button>
                                             </td>
                                         </tr>
@@ -1565,6 +1831,37 @@
                                 <template x-if="detail.data.company.industry">
                                     <span class="inline-flex items-center ml-2 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700" x-text="detail.data.company.industry"></span>
                                 </template>
+
+                                <!-- Merge Company -->
+                                <div x-show="!detail.mergeMode" class="mt-2">
+                                    <button @click="detail.mergeMode = true"
+                                        class="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">Merge another company into this one</button>
+                                </div>
+                                <div x-show="detail.mergeMode" class="mt-2 space-y-2">
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" x-model="detail.mergeSearch"
+                                            @input.debounce.300ms="mergeSearchCompanies(detail.mergeSearch)"
+                                            placeholder="Search company to merge in..."
+                                            class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 w-72 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                        <button @click="detail.mergeMode = false; detail.mergeSearch = ''; detail.mergeResults = []"
+                                            class="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                                    </div>
+                                    <template x-if="detail.mergeResults && detail.mergeResults.length > 0">
+                                        <div class="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                                            <template x-for="mc in detail.mergeResults" :key="mc.id">
+                                                <button @click="executeMerge(detail.id, mc.id, mc.name)"
+                                                    class="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-red-50 transition-colors">
+                                                    <div>
+                                                        <span class="text-sm font-medium text-gray-900" x-text="mc.name"></span>
+                                                        <span class="text-xs text-gray-500 ml-2" x-text="mc.domain || ''"></span>
+                                                    </div>
+                                                    <span class="text-xs text-red-600 font-medium">Merge</span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+
                                 <template x-if="detail.data.company.source_data?.enr">
                                     <div class="mt-2 flex items-center gap-2">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700"
@@ -1732,6 +2029,10 @@
                                         <div>
                                             <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Tier</label>
                                             <p class="mt-1 text-sm text-gray-900" x-text="detail.data.company.account_tier || '-'"></p>
+                                        </div>
+                                        <div class="col-span-2" x-show="detail.data.company.work_type">
+                                            <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Type of Work</label>
+                                            <p class="mt-1 text-sm text-gray-900" x-text="detail.data.company.work_type || '-'"></p>
                                         </div>
                                         <div>
                                             <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">ARR</label>

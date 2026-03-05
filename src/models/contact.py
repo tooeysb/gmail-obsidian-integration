@@ -111,6 +111,16 @@ class Contact(Base, UUIDMixin, TimestampMixin):
         String(500), nullable=True, comment="LinkedIn profile URL"
     )
 
+    enrichment_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Enrichment status: enriched, needs_review, skipped",
+    )
+
+    enrichment_notes: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="Notes from enrichment automation"
+    )
+
     source_data: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, comment="Raw imported CRM data for reference"
     )
