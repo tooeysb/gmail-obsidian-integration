@@ -4,7 +4,10 @@ CRM API routes for contact and company management.
 
 import re
 import uuid
+from urllib.parse import quote_plus
 
+import httpx
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import case, func, or_, text
@@ -640,20 +643,26 @@ def enrich_contact_title(
         {"uid": str(uid), "contact_email": contact.email.lower()},
     ).fetchall()
 
-    if not sig_rows:
-        return {"title": None}
-
-    best = max(sig_rows, key=lambda r: len(r.sig_text or ""))
     company_name = contact.company.name if contact.company else ""
-    signatures = {
-        contact.email.lower(): (
-            best.sender_name or contact.name or "",
-            best.sig_text,
-        )
-    }
-    enriched = _enrich_with_haiku(signatures, company_name)
-    info = enriched.get(contact.email.lower(), {})
-    title = info.get("title")
+    title = None
+
+    # Step 1: Try email signature enrichment via Haiku
+    if sig_rows:
+        best = max(sig_rows, key=lambda r: len(r.sig_text or ""))
+        signatures = {
+            contact.email.lower(): (
+                best.sender_name or contact.name or "",
+                best.sig_text,
+            )
+        }
+        enriched = _enrich_with_haiku(signatures, company_name)
+        info = enriched.get(contact.email.lower(), {})
+        title = info.get("title")
+
+    # Step 2: Fallback to LinkedIn search if Haiku found nothing
+    if not title:
+        _logger.info("No title from email signatures for %s, trying LinkedIn…", contact.name)
+        title = _search_linkedin_title(contact.name, company_name)
 
     if title:
         contact.title = title
@@ -927,6 +936,72 @@ def _enrich_with_haiku(
     except Exception:
         logger.warning("Haiku enrichment failed, skipping", exc_info=True)
         return {}
+
+
+def _search_linkedin_title(name: str | None, company_name: str) -> str | None:
+    """Search DuckDuckGo for a person's LinkedIn profile and extract their job title.
+
+    LinkedIn results typically have titles like:
+      "John Smith - VP of Operations - Acme Corp | LinkedIn"
+    We parse the title to extract the middle portion (the job title).
+    """
+    if not name:
+        return None
+
+    clean_name = name.split(" - ")[0].strip()
+    co = company_name.split(" - ")[0].strip() if company_name else ""
+    query = (
+        f'"{clean_name}" "{co}" site:linkedin.com/in'
+        if co
+        else f'"{clean_name}" site:linkedin.com/in'
+    )
+    url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+
+    try:
+        resp = httpx.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; CRM-HTH/1.0)"},
+            timeout=10,
+            follow_redirects=True,
+        )
+        if resp.status_code != 200:
+            _logger.warning("LinkedIn search returned %s", resp.status_code)
+            return None
+
+        soup = BeautifulSoup(resp.text, "lxml")
+
+        for result in soup.select(".result"):
+            title_el = result.select_one(".result__a")
+            link_el = result.select_one(".result__url")
+            if not title_el:
+                continue
+            link_text = link_el.get_text().strip() if link_el else ""
+            if "linkedin.com/in/" not in link_text:
+                continue
+
+            # Parse: "Name - Title - Company | LinkedIn"
+            raw_title = title_el.get_text().strip()
+            raw_title = raw_title.split(" | ")[0].strip()  # Remove "| LinkedIn"
+            parts = [p.strip() for p in raw_title.split(" - ")]
+
+            if len(parts) >= 3:
+                # "Name - Title - Company" → middle parts are the title
+                title = " - ".join(parts[1:-1])
+                if title and title.lower() not in ("linkedin", ""):
+                    _logger.info("LinkedIn fallback found title for %s: %s", name, title)
+                    return title
+            elif len(parts) == 2:
+                # "Name - Title" → second part is the title
+                candidate = parts[1]
+                if candidate and candidate.lower() not in ("linkedin", ""):
+                    _logger.info("LinkedIn fallback found title for %s: %s", name, candidate)
+                    return candidate
+
+        _logger.info("LinkedIn search found no title for %s at %s", name, company_name)
+        return None
+    except Exception:
+        _logger.warning("LinkedIn title search failed for %s", name, exc_info=True)
+        return None
 
 
 def _build_linkedin_url(name: str | None, company_name: str) -> str | None:
