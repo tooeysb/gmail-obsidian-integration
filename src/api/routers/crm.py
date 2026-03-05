@@ -540,47 +540,7 @@ def get_contact(
         "by_year": by_year,
     }
 
-    # Auto-enrich title from email signature if missing
-    if not contact.title:
-        # Fetch several recent emails, pick longest body (most likely to have a signature)
-        sig_rows = db.execute(
-            text(
-                """
-                SELECT sender_name, COALESCE(body, summary) AS sig_text
-                FROM emails
-                WHERE user_id = :uid
-                  AND LOWER(sender_email) = :contact_email
-                  AND LENGTH(COALESCE(body, summary)) > 100
-                ORDER BY date DESC
-                LIMIT 5
-                """
-            ),
-            {"uid": str(user.id), "contact_email": contact.email.lower()},
-        ).fetchall()
-
-        if sig_rows:
-            best = max(sig_rows, key=lambda r: len(r.sig_text or ""))
-            company_name = contact.company.name if contact.company else ""
-            signatures = {
-                contact.email.lower(): (
-                    best.sender_name or contact.name or "",
-                    best.sig_text,
-                )
-            }
-            enriched = _enrich_with_haiku(signatures, company_name)
-            info = enriched.get(contact.email.lower(), {})
-            if info.get("title"):
-                contact.title = info["title"]
-                db.commit()
-                db.refresh(contact)
-                _logger.info("Auto-enriched title for contact %s: %s", contact.id, contact.title)
-
-    company_name = None
-    if contact.company_id:
-        # Re-fetch company name safely (may have been expired by commit)
-        company = db.query(Company).filter(Company.id == contact.company_id).first()
-        company_name = company.name if company else None
-    contact_data = _serialize_contact(contact, company_name)
+    contact_data = _serialize_contact(contact, contact.company.name if contact.company else None)
 
     return {
         "contact": contact_data,
@@ -635,6 +595,72 @@ def update_contact(
     db.refresh(contact)
 
     return _serialize_contact(contact, contact.company.name if contact.company else None)
+
+
+# ---------------------------------------------------------------------------
+# POST /contacts/{id}/enrich-title
+# ---------------------------------------------------------------------------
+
+
+@router.post("/contacts/{contact_id}/enrich-title")
+def enrich_contact_title(
+    contact_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_sync_db),
+):
+    """Extract job title from email signatures via Haiku. Returns immediately if title exists."""
+    uid = user.id
+
+    contact = (
+        db.query(Contact)
+        .options(selectinload(Contact.company))
+        .filter(Contact.id == contact_id, Contact.user_id == uid)
+        .first()
+    )
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    # Already has a title — return it without calling Haiku
+    if contact.title:
+        return {"title": contact.title}
+
+    # Fetch several recent emails, pick longest body (most likely to have a signature)
+    sig_rows = db.execute(
+        text(
+            """
+            SELECT sender_name, COALESCE(body, summary) AS sig_text
+            FROM emails
+            WHERE user_id = :uid
+              AND LOWER(sender_email) = :contact_email
+              AND LENGTH(COALESCE(body, summary)) > 100
+            ORDER BY date DESC
+            LIMIT 5
+            """
+        ),
+        {"uid": str(uid), "contact_email": contact.email.lower()},
+    ).fetchall()
+
+    if not sig_rows:
+        return {"title": None}
+
+    best = max(sig_rows, key=lambda r: len(r.sig_text or ""))
+    company_name = contact.company.name if contact.company else ""
+    signatures = {
+        contact.email.lower(): (
+            best.sender_name or contact.name or "",
+            best.sig_text,
+        )
+    }
+    enriched = _enrich_with_haiku(signatures, company_name)
+    info = enriched.get(contact.email.lower(), {})
+    title = info.get("title")
+
+    if title:
+        contact.title = title
+        db.commit()
+        _logger.info("Auto-enriched title for contact %s: %s", contact.id, title)
+
+    return {"title": title}
 
 
 # ---------------------------------------------------------------------------

@@ -87,41 +87,29 @@ class TestListContactsEmailDates:
 
 
 # ---------------------------------------------------------------------------
-# Tests: contact detail auto-enrichment of job title
+# Tests: POST /contacts/{id}/enrich-title (async title enrichment)
 # ---------------------------------------------------------------------------
-class TestContactDetailAutoEnrich:
-    """GET /crm/api/contacts/{id} should auto-enrich title from email signature."""
+class TestEnrichTitle:
+    """POST /crm/api/contacts/{id}/enrich-title should extract title via Haiku."""
 
-    def _setup_detail_mocks(self, mock_db, contact, rel_profile=None):
-        """Configure mock_db for the contact detail endpoint call chain."""
-        mock_user = MagicMock()
-        mock_user.id = contact.id  # just needs a UUID
-
-        # The shared query_mock handles all db.query() chains.
-        # For the detail endpoint, .first() is called multiple times:
-        #   1. get_current_user -> User
-        #   2. contact lookup -> Contact
-        #   3. relationship profile -> None/profile
-        #   4. company re-fetch (after potential commit expiry)
-        company_mock = contact.company
+    def _setup_enrich_mocks(self, mock_db, contact):
+        """Configure mock_db for the enrich-title endpoint."""
         query_mock = mock_db.query.return_value
+        # .first() calls: 1. get_current_user -> User, 2. contact lookup -> Contact
         query_mock.first.side_effect = [
             mock_db.query.return_value.first.return_value,  # User (from conftest)
             contact,
-            rel_profile,
-            company_mock,  # company re-fetch
         ]
 
     @patch("src.api.routers.crm._enrich_with_haiku")
-    def test_auto_enriches_title_when_missing(self, mock_haiku, test_client, mock_db):
+    def test_enriches_title_when_missing(self, mock_haiku, test_client, mock_db):
         """When contact has no title, Haiku is called and title is persisted."""
         contact = _make_contact(title=None)
         company_mock = MagicMock()
         company_mock.name = "Acme Corp"
         contact.company = company_mock
-        self._setup_detail_mocks(mock_db, contact)
+        self._setup_enrich_mocks(mock_db, contact)
 
-        # Mock db.execute for the raw SQL signature lookup (now returns fetchall)
         sig_row = MagicMock()
         sig_row.sender_name = "Kasey Bevans"
         sig_row.sig_text = "Thanks!\n\nKasey Bevans\nVP of Operations\nAcme Corp"
@@ -135,51 +123,53 @@ class TestContactDetailAutoEnrich:
             }
         }
 
-        resp = test_client.get(f"/crm/api/contacts/{contact.id}")
+        resp = test_client.post(f"/crm/api/contacts/{contact.id}/enrich-title")
         assert resp.status_code == 200
+        assert resp.json()["title"] == "VP of Operations"
 
         mock_haiku.assert_called_once()
         assert contact.title == "VP of Operations"
         mock_db.commit.assert_called()
 
     @patch("src.api.routers.crm._enrich_with_haiku")
-    def test_skips_enrichment_when_title_exists(self, mock_haiku, test_client, mock_db):
-        """When contact already has a title, Haiku is NOT called."""
+    def test_returns_existing_title_without_haiku(self, mock_haiku, test_client, mock_db):
+        """When contact already has a title, return it immediately without Haiku."""
         contact = _make_contact(title="CEO")
         company_mock = MagicMock()
         company_mock.name = "Acme Corp"
         contact.company = company_mock
-        self._setup_detail_mocks(mock_db, contact)
+        self._setup_enrich_mocks(mock_db, contact)
 
-        resp = test_client.get(f"/crm/api/contacts/{contact.id}")
+        resp = test_client.post(f"/crm/api/contacts/{contact.id}/enrich-title")
         assert resp.status_code == 200
+        assert resp.json()["title"] == "CEO"
 
         mock_haiku.assert_not_called()
 
     @patch("src.api.routers.crm._enrich_with_haiku")
-    def test_no_enrichment_when_no_sent_emails(self, mock_haiku, test_client, mock_db):
-        """When contact has no sent emails with body, Haiku is NOT called."""
+    def test_returns_null_when_no_emails(self, mock_haiku, test_client, mock_db):
+        """When contact has no emails with body, return null without Haiku."""
         contact = _make_contact(title=None)
         contact.company = None
         contact.company_id = None
-        self._setup_detail_mocks(mock_db, contact)
+        self._setup_enrich_mocks(mock_db, contact)
 
-        # No signature rows found
         mock_db.execute.return_value.fetchall.return_value = []
 
-        resp = test_client.get(f"/crm/api/contacts/{contact.id}")
+        resp = test_client.post(f"/crm/api/contacts/{contact.id}/enrich-title")
         assert resp.status_code == 200
+        assert resp.json()["title"] is None
 
         mock_haiku.assert_not_called()
 
     @patch("src.api.routers.crm._enrich_with_haiku")
-    def test_enrichment_no_title_found(self, mock_haiku, test_client, mock_db):
-        """When Haiku returns no title, contact.title stays None."""
+    def test_returns_null_when_haiku_finds_nothing(self, mock_haiku, test_client, mock_db):
+        """When Haiku finds no title in signature, return null."""
         contact = _make_contact(title=None)
         company_mock = MagicMock()
         company_mock.name = "Acme Corp"
         contact.company = company_mock
-        self._setup_detail_mocks(mock_db, contact)
+        self._setup_enrich_mocks(mock_db, contact)
 
         sig_row = MagicMock()
         sig_row.sender_name = "Kasey Bevans"
@@ -190,8 +180,9 @@ class TestContactDetailAutoEnrich:
             "kasey@acme.com": {"name": "Kasey Bevans", "title": None, "linkedin_url": None}
         }
 
-        resp = test_client.get(f"/crm/api/contacts/{contact.id}")
+        resp = test_client.post(f"/crm/api/contacts/{contact.id}/enrich-title")
         assert resp.status_code == 200
+        assert resp.json()["title"] is None
 
         assert contact.title is None
         mock_db.commit.assert_not_called()

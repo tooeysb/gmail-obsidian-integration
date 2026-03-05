@@ -1087,15 +1087,24 @@
                         <!-- Quick Info Grid -->
                         <div class="px-6 py-4 border-b border-gray-100">
                             <div class="grid grid-cols-2 gap-4">
-                                <!-- Title (inline editable) -->
+                                <!-- Title (inline editable, with async enrichment spinner) -->
                                 <div>
                                     <label class="text-xs font-medium text-gray-500 uppercase tracking-wider">Title</label>
-                                    <div @click="startEditing('title', detail.data.contact.title || '')" class="mt-1">
-                                        <template x-if="editing.field !== 'title'">
+                                    <div @click="!detail.enrichingTitle && startEditing('title', detail.data.contact.title || '')" class="mt-1">
+                                        <template x-if="detail.enrichingTitle">
+                                            <p class="text-sm text-gray-400 flex items-center gap-1.5 px-1 -mx-1 py-0.5">
+                                                <svg class="animate-spin h-3.5 w-3.5 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                </svg>
+                                                Looking up title…
+                                            </p>
+                                        </template>
+                                        <template x-if="!detail.enrichingTitle && editing.field !== 'title'">
                                             <p class="text-sm text-gray-900 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1 py-0.5"
                                                 x-text="detail.data.contact.title || 'Click to add'"></p>
                                         </template>
-                                        <template x-if="editing.field === 'title'">
+                                        <template x-if="!detail.enrichingTitle && editing.field === 'title'">
                                             <input type="text" x-model="editing.value"
                                                 @blur="saveField('title')" @keydown.enter="saveField('title')" @keydown.escape="cancelEditing()"
                                                 x-ref="editInput"

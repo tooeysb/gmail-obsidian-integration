@@ -271,7 +271,7 @@ function crmApp() {
 
         // ==================== DETAIL PANEL ====================
         async openContactDetail(id) {
-            this.detail = { show: true, type: 'contact', id, loading: true, data: null };
+            this.detail = { show: true, type: 'contact', id, loading: true, data: null, enrichingTitle: false };
             this.emails = [];
             this.emailsPage = 1;
             this.emailsTotal = 0;
@@ -286,6 +286,19 @@ function crmApp() {
                 this.detail.emailsTotal = data.email_stats?.total || 0;
                 // Load paginated emails
                 this.loadContactEmails(id, true);
+
+                // Async title enrichment if title is missing
+                if (!data.contact?.title) {
+                    this.detail.enrichingTitle = true;
+                    this.apiFetch('contacts/' + id + '/enrich-title', { method: 'POST' })
+                        .then(result => {
+                            if (result?.title && this.detail.id === id) {
+                                this.detail.data.contact.title = result.title;
+                            }
+                        })
+                        .catch(() => {})
+                        .finally(() => { this.detail.enrichingTitle = false; });
+                }
             }
             this.detail.loading = false;
         },
