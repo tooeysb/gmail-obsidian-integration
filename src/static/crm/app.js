@@ -93,6 +93,7 @@ function crmApp() {
             data: null,
         },
         _savedScrollY: 0,
+        _returnTo: null, // breadcrumb: {view, adminTab, reportTab} to return to after detail
 
         // Detail emails pagination
         emails: [],
@@ -327,6 +328,9 @@ function crmApp() {
         // ==================== DETAIL PANEL ====================
         async openContactDetail(id) {
             this._savedScrollY = window.scrollY;
+            this._returnTo = this.currentView === 'admin'
+                ? { view: 'admin', adminTab: this.admin.selected, reportTab: this.reports.selected }
+                : null;
             this.detail = { show: true, type: 'contact', id, loading: true, data: null, enrichingTitle: false };
             this.emails = [];
             this.emailsPage = 1;
@@ -361,6 +365,9 @@ function crmApp() {
 
         async openCompanyDetail(id) {
             this._savedScrollY = window.scrollY;
+            this._returnTo = this.currentView === 'admin'
+                ? { view: 'admin', adminTab: this.admin.selected, reportTab: this.reports.selected }
+                : null;
             this.detail = { show: true, type: 'company', id, loading: true, data: null, recentNews: [], olderNews: [], newsLoading: false, newsTotal: 0, companyTab: 'overview', discoveredContacts: [], discoveredLoading: false, discoveredDomain: '', scanning: false, scanMessage: '', mergeMode: false, mergeSearch: '', mergeResults: [], merging: false, showInactive: false };
             this.editing = { field: null, value: '' };
             window.location.hash = 'companies/' + id;
@@ -423,7 +430,15 @@ function crmApp() {
         closeDetail() {
             this.detail.show = false;
             this.editing = { field: null, value: '' };
-            window.location.hash = this.currentView;
+            if (this._returnTo) {
+                this.currentView = this._returnTo.view;
+                if (this._returnTo.adminTab) this.admin.selected = this._returnTo.adminTab;
+                if (this._returnTo.reportTab) this.reports.selected = this._returnTo.reportTab;
+                window.location.hash = this._returnTo.view;
+                this._returnTo = null;
+            } else {
+                window.location.hash = this.currentView;
+            }
             this.$nextTick(() => { window.scrollTo(0, this._savedScrollY); });
         },
 
