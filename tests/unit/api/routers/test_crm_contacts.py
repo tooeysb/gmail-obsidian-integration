@@ -102,11 +102,14 @@ class TestContactDetailAutoEnrich:
         #   1. get_current_user -> User
         #   2. contact lookup -> Contact
         #   3. relationship profile -> None/profile
+        #   4. company re-fetch (after potential commit expiry)
+        company_mock = contact.company
         query_mock = mock_db.query.return_value
         query_mock.first.side_effect = [
             mock_db.query.return_value.first.return_value,  # User (from conftest)
             contact,
             rel_profile,
+            company_mock,  # company re-fetch
         ]
 
     @patch("src.api.routers.crm._enrich_with_haiku")

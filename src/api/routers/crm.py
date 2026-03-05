@@ -572,9 +572,15 @@ def get_contact(
             if info.get("title"):
                 contact.title = info["title"]
                 db.commit()
+                db.refresh(contact)
                 _logger.info("Auto-enriched title for contact %s: %s", contact.id, contact.title)
 
-    contact_data = _serialize_contact(contact, contact.company.name if contact.company else None)
+    company_name = None
+    if contact.company_id:
+        # Re-fetch company name safely (may have been expired by commit)
+        company = db.query(Company).filter(Company.id == contact.company_id).first()
+        company_name = company.name if company else None
+    contact_data = _serialize_contact(contact, company_name)
 
     return {
         "contact": contact_data,
