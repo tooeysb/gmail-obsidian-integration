@@ -33,6 +33,7 @@ def _make_contact(**overrides):
         "account_sources": ["procore-main"],
         "salesforce_id": None,
         "address": None,
+        "linkedin_url": None,
         "created_at": datetime(2024, 1, 1, tzinfo=UTC),
         "updated_at": datetime(2024, 6, 1, tzinfo=UTC),
     }

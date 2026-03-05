@@ -52,6 +52,7 @@ class TestSerializeContact:
             "account_sources": ["procore-main"],
             "salesforce_id": "SF001",
             "address": "123 Main St",
+            "linkedin_url": None,
             "created_at": datetime(2023, 1, 1, tzinfo=UTC),
             "updated_at": datetime(2024, 1, 15, tzinfo=UTC),
         }

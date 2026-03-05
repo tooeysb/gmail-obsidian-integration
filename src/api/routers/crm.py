@@ -137,6 +137,7 @@ class ContactUpdateRequest(BaseModel):
     relationship_context: str | None = None
     company_id: str | None = None
     personal_email: str | None = None
+    linkedin_url: str | None = None
 
 
 class CompanyUpdateRequest(BaseModel):
@@ -217,6 +218,7 @@ def _serialize_contact(contact: Contact, company_name: str | None = None) -> dic
         "account_sources": contact.account_sources or [],
         "salesforce_id": contact.salesforce_id,
         "address": contact.address,
+        "linkedin_url": contact.linkedin_url,
         "created_at": serialize_dt(contact.created_at),
         "updated_at": serialize_dt(contact.updated_at),
     }
@@ -646,10 +648,15 @@ def enrich_contact_title(
     company_name = contact.company.name if contact.company else ""
     title = None
 
-    # Step 1: Try LinkedIn search first (fast — ~2-5s)
-    title = _search_linkedin_title(contact.name, company_name)
+    # Step 1: If we have a stored LinkedIn URL, scrape title from it directly
+    if contact.linkedin_url:
+        title = _scrape_linkedin_title(contact.linkedin_url, contact.name)
 
-    # Step 2: Fall back to email signature enrichment via Haiku (slow — ~15-25s)
+    # Step 2: Try LinkedIn search (fast — ~2-5s)
+    if not title:
+        title = _search_linkedin_title(contact.name, company_name)
+
+    # Step 3: Fall back to email signature enrichment via Haiku (slow — ~15-25s)
     if not title and sig_rows:
         _logger.info("No LinkedIn title for %s, trying email signatures…", contact.name)
         best = max(sig_rows, key=lambda r: len(r.sig_text or ""))
@@ -1008,6 +1015,53 @@ def _expand_nickname(name: str) -> str | None:
     if formal:
         return formal + " " + " ".join(parts[1:])
     return None
+
+
+def _scrape_linkedin_title(linkedin_url: str, name: str | None) -> str | None:
+    """Search DuckDuckGo for a known LinkedIn URL and extract the title from the result."""
+    # Extract the profile slug (e.g., "david-burns-5727331") for the search
+    slug = linkedin_url.rstrip("/").split("/")[-1]
+    query = f"site:linkedin.com/in/{slug}"
+    url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+    try:
+        resp = httpx.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; CRM-HTH/1.0)"},
+            timeout=6,
+            follow_redirects=True,
+        )
+        if resp.status_code != 200:
+            return None
+
+        soup = BeautifulSoup(resp.text, "lxml")
+        for result in soup.select(".result"):
+            title_el = result.select_one(".result__a")
+            link_el = result.select_one(".result__url")
+            if not title_el:
+                continue
+            link_text = link_el.get_text().strip() if link_el else ""
+            if "linkedin.com/in/" not in link_text:
+                continue
+
+            raw_title = title_el.get_text().strip()
+            raw_title = raw_title.split(" | ")[0].strip()
+            parts = [p.strip() for p in raw_title.split(" - ")]
+
+            if len(parts) >= 3:
+                title = " - ".join(parts[1:-1])
+                if title and title.lower() not in ("linkedin", ""):
+                    _logger.info("LinkedIn URL lookup found title for %s: %s", name, title)
+                    return title
+            elif len(parts) == 2:
+                candidate = parts[1]
+                if candidate and candidate.lower() not in ("linkedin", ""):
+                    _logger.info("LinkedIn URL lookup found title for %s: %s", name, candidate)
+                    return candidate
+
+        return None
+    except Exception:
+        _logger.warning("LinkedIn URL lookup failed for %s", linkedin_url, exc_info=True)
+        return None
 
 
 def _search_linkedin_title(name: str | None, company_name: str) -> str | None:
@@ -1567,6 +1621,46 @@ def report_companies_without_people(
             "account_tier": c.account_tier,
         }
         for c in companies
+    ]
+
+    return {"items": results, "total": len(results)}
+
+
+# ---------------------------------------------------------------------------
+# GET /reports/needs-linkedin-url
+# ---------------------------------------------------------------------------
+
+
+@router.get("/reports/needs-linkedin-url")
+def report_needs_linkedin_url(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_sync_db),
+):
+    """Contacts without a title where LinkedIn search failed and no LinkedIn URL is stored."""
+    uid = user.id
+
+    contacts = (
+        db.query(Contact)
+        .options(selectinload(Contact.company))
+        .filter(
+            Contact.user_id == uid,
+            Contact.title.is_(None),
+            Contact.linkedin_url.is_(None),
+        )
+        .order_by(Contact.email_count.desc())
+        .limit(100)
+        .all()
+    )
+
+    results = [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "email": c.email,
+            "company_name": c.company.name if c.company else None,
+            "email_count": c.email_count,
+        }
+        for c in contacts
     ]
 
     return {"items": results, "total": len(results)}

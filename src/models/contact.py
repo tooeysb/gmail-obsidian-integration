@@ -107,6 +107,10 @@ class Contact(Base, UUIDMixin, TimestampMixin):
 
     address: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Mailing address")
 
+    linkedin_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="LinkedIn profile URL"
+    )
+
     source_data: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, comment="Raw imported CRM data for reference"
     )
