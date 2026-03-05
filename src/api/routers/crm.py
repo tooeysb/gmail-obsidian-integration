@@ -134,6 +134,7 @@ class RelationshipProfileSummary(BaseModel):
 
 class ContactUpdateRequest(BaseModel):
     name: str | None = None
+    email: str | None = None
     title: str | None = None
     phone: str | None = None
     contact_type: str | None = None
