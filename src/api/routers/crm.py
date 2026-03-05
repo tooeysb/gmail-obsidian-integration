@@ -937,6 +937,79 @@ def _enrich_with_haiku(
         return {}
 
 
+# Common nickname → formal name mappings for LinkedIn search
+_NICKNAME_MAP = {
+    "dave": "David",
+    "mike": "Michael",
+    "bob": "Robert",
+    "rob": "Robert",
+    "bill": "William",
+    "will": "William",
+    "jim": "James",
+    "jimmy": "James",
+    "tom": "Thomas",
+    "tommy": "Thomas",
+    "dan": "Daniel",
+    "danny": "Daniel",
+    "joe": "Joseph",
+    "tony": "Anthony",
+    "rick": "Richard",
+    "dick": "Richard",
+    "rich": "Richard",
+    "pat": "Patrick",
+    "matt": "Matthew",
+    "chris": "Christopher",
+    "nick": "Nicholas",
+    "ed": "Edward",
+    "ted": "Edward",
+    "al": "Albert",
+    "steve": "Steven",
+    "andy": "Andrew",
+    "drew": "Andrew",
+    "greg": "Gregory",
+    "jeff": "Jeffrey",
+    "jerry": "Gerald",
+    "larry": "Lawrence",
+    "charlie": "Charles",
+    "chuck": "Charles",
+    "hank": "Henry",
+    "harry": "Harold",
+    "jack": "John",
+    "jon": "Jonathan",
+    "ken": "Kenneth",
+    "liz": "Elizabeth",
+    "beth": "Elizabeth",
+    "kate": "Katherine",
+    "kathy": "Katherine",
+    "sue": "Susan",
+    "peggy": "Margaret",
+    "maggie": "Margaret",
+    "jen": "Jennifer",
+    "sam": "Samuel",
+    "ben": "Benjamin",
+    "tim": "Timothy",
+    "wes": "Wesley",
+    "doug": "Douglas",
+    "pete": "Peter",
+    "phil": "Philip",
+    "ray": "Raymond",
+    "ron": "Ronald",
+    "walt": "Walter",
+}
+
+
+def _expand_nickname(name: str) -> str | None:
+    """If the first name is a common nickname, return the name with the formal version."""
+    parts = name.split()
+    if not parts:
+        return None
+    first = parts[0].lower()
+    formal = _NICKNAME_MAP.get(first)
+    if formal:
+        return formal + " " + " ".join(parts[1:])
+    return None
+
+
 def _search_linkedin_title(name: str | None, company_name: str) -> str | None:
     """Search DuckDuckGo for a person's LinkedIn profile and extract their job title.
 
@@ -951,16 +1024,29 @@ def _search_linkedin_title(name: str | None, company_name: str) -> str | None:
     # Strip suffixes like "- HQ", ", Inc.", ", LLC" from company names for cleaner search
     co = company_name.split(" - ")[0].strip() if company_name else ""
     co = re.sub(r",?\s*(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?)$", "", co).strip()
+    # Short company name = first word only (e.g. "McCarthy" from "McCarthy Holdings")
+    co_short = co.split()[0] if co else ""
 
-    # Try exact-match first, then relaxed (handles Dave vs David, etc.)
+    # Build name variants (handles Dave/David, Mike/Michael, etc.)
+    name_variants = [clean_name]
+    alt = _expand_nickname(clean_name)
+    if alt and alt != clean_name:
+        name_variants.append(alt)
+
+    # Build queries: exact match first, then relaxed, then nickname variant
+    # Cap at 3 queries (6s each = 18s max) to stay within Heroku's 30s timeout
     queries = []
     if co:
         queries.append(f'"{clean_name}" "{co}" site:linkedin.com/in')
-        queries.append(f"{clean_name} {co} site:linkedin.com/in")
+        queries.append(f"{clean_name} {co_short} site:linkedin.com/in")
+        if alt:
+            queries.append(f"{alt} {co_short} site:linkedin.com/in")
     else:
         queries.append(f'"{clean_name}" site:linkedin.com/in')
+        if alt:
+            queries.append(f'"{alt}" site:linkedin.com/in')
 
-    for query in queries:
+    for query in queries[:3]:
         result = _search_linkedin_query(clean_name, query)
         if result:
             return result
@@ -976,7 +1062,7 @@ def _search_linkedin_query(name: str, query: str) -> str | None:
         resp = httpx.get(
             url,
             headers={"User-Agent": "Mozilla/5.0 (compatible; CRM-HTH/1.0)"},
-            timeout=10,
+            timeout=6,
             follow_redirects=True,
         )
         if resp.status_code != 200:
