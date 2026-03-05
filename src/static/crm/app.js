@@ -70,7 +70,7 @@ function crmApp() {
         // Reports
         reports: {
             loading: false,
-            selected: 'needsLinkedIn',
+            selected: localStorage.getItem('crm_report_tab') || 'needsLinkedIn',
             challengingNames: [],
             companiesWithoutPeople: [],
             needsLinkedIn: [],
@@ -82,7 +82,7 @@ function crmApp() {
         },
 
         // Admin
-        admin: { selected: 'reports' },
+        admin: { selected: localStorage.getItem('crm_admin_tab') || 'reports' },
 
         // Detail panel
         detail: {
@@ -112,6 +112,8 @@ function crmApp() {
         init() {
             window.addEventListener('hashchange', () => this._restoreFromHash());
             this._restoreFromHash();
+            this.$watch('reports.selected', (val) => localStorage.setItem('crm_report_tab', val));
+            this.$watch('admin.selected', (val) => localStorage.setItem('crm_admin_tab', val));
         },
 
         // ==================== NAVIGATION ====================
