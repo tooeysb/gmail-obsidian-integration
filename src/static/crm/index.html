@@ -1729,19 +1729,61 @@
                                         </button>
                                     </div>
                                     <p class="text-sm text-gray-500 mt-0.5" x-text="detail.data.contact.email"></p>
-                                    <template x-if="detail.data.contact.company">
+                                    <template x-if="detail.data.contact.company && editing.field !== 'company_name'">
                                         <div class="mt-1.5 flex items-center gap-1">
-                                            <template x-if="editing.field !== 'company_name'">
-                                                <span @click="startEditing('company_name', detail.data.contact.company.name || '')"
-                                                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer transition-colors"
-                                                    x-text="detail.data.contact.company.name"></span>
+                                            <span @click="openCompanyDetail(detail.data.contact.company.id)"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer transition-colors"
+                                                x-text="detail.data.contact.company.name"></span>
+                                            <button @click="companySearch.query = detail.data.contact.company.name; startEditing('company_name', '')"
+                                                class="p-0.5 text-gray-400 hover:text-gray-600" title="Change company">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            </button>
+                                            <template x-if="detail.data.contact.is_active !== false">
+                                                <button @click="markContactLeft(detail.data.contact.id)"
+                                                    class="text-[11px] text-gray-400 hover:text-red-600 transition-colors"
+                                                    title="Mark as no longer at this company">
+                                                    Left company
+                                                </button>
                                             </template>
-                                            <template x-if="editing.field === 'company_name'">
-                                                <input type="text" x-model="editing.value"
-                                                    @blur="saveCompanyName()" @keydown.enter="saveCompanyName()" @keydown.escape="cancelEditing()"
-                                                    x-ref="editInput"
-                                                    class="text-xs font-medium border border-primary-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500">
+                                            <template x-if="detail.data.contact.is_active === false">
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-50 text-red-600">
+                                                    Left company
+                                                </span>
                                             </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="editing.field === 'company_name'">
+                                        <div class="mt-1.5 relative">
+                                            <input type="text" x-model="companySearch.query"
+                                                @input.debounce.300ms="searchCompanies(companySearch.query)"
+                                                @keydown.escape="cancelEditing(); companySearch = { query: '', results: [], loading: false, selected: null }"
+                                                x-init="$nextTick(() => $el.focus())"
+                                                placeholder="Search for a company..."
+                                                class="w-full text-xs font-medium border border-primary-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500">
+                                            <template x-if="companySearch.results.length > 0">
+                                                <div class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                                    <template x-for="c in companySearch.results" :key="c.id">
+                                                        <button @click="assignCompany(c.id, c.name)"
+                                                            class="w-full text-left px-3 py-2 text-xs hover:bg-primary-50 border-b border-gray-100 last:border-0">
+                                                            <span class="font-medium text-gray-900" x-text="c.name"></span>
+                                                            <span class="text-gray-400 ml-1" x-text="c.domain ? '(' + c.domain + ')' : ''"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <template x-if="companySearch.loading">
+                                                <div class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs text-gray-400">
+                                                    Searching...
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!detail.data.contact.company && editing.field !== 'company_name'">
+                                        <div class="mt-1.5">
+                                            <button @click="companySearch.query = ''; startEditing('company_name', '')"
+                                                class="text-xs text-gray-400 hover:text-primary-600">
+                                                + Assign to company
+                                            </button>
                                         </div>
                                     </template>
                                 </div>

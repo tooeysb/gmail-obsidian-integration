@@ -506,6 +506,21 @@ function crmApp() {
             }
         },
 
+        async markContactLeft(id) {
+            if (!confirm('Mark this person as no longer at this company?')) return;
+            const now = new Date().toISOString();
+            const result = await this.apiFetch('contacts/' + id, {
+                method: 'PATCH',
+                body: JSON.stringify({ is_active: false, job_change_detected_at: now }),
+            });
+            if (result) {
+                if (this.detail.data?.contact) {
+                    this.detail.data.contact.is_active = false;
+                    this.detail.data.contact.job_change_detected_at = now;
+                }
+            }
+        },
+
         async acceptLinkedInName(companyId) {
             const result = await this.apiFetch('companies/' + companyId + '/accept-linkedin-name', { method: 'POST' });
             if (result) {
@@ -576,19 +591,32 @@ function crmApp() {
             }
         },
 
-        async saveCompanyName() {
-            const value = this.editing.value;
+        // Company typeahead state
+        companySearch: { query: '', results: [], loading: false, selected: null },
+
+        async searchCompanies(query) {
+            if (!query || query.length < 2) { this.companySearch.results = []; return; }
+            this.companySearch.loading = true;
+            const data = await this.apiFetch('companies?search=' + encodeURIComponent(query) + '&page_size=8&no_contact=false');
+            // Also search no-contact companies
+            const data2 = await this.apiFetch('companies?search=' + encodeURIComponent(query) + '&page_size=8&no_contact=true');
+            const all = [...(data?.items || []), ...(data2?.items || [])];
+            // Dedupe by id
+            const seen = new Set();
+            this.companySearch.results = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; }).slice(0, 8);
+            this.companySearch.loading = false;
+        },
+
+        async assignCompany(companyId, companyName) {
+            this.companySearch = { query: '', results: [], loading: false, selected: null };
             this.editing = { field: null, value: '' };
-            const company = this.detail.data?.contact?.company;
-            if (!company?.id) return;
-            const result = await this.apiFetch('companies/' + company.id, {
+            const result = await this.apiFetch('contacts/' + this.detail.id, {
                 method: 'PATCH',
-                body: JSON.stringify({ name: value || null }),
+                body: JSON.stringify({ company_id: companyId }),
             });
             if (result) {
-                company.name = value;
-                // Update company name in the contacts list too
-                this.updateContactInList(this.detail.id, { company: { ...company, name: value } });
+                // Reload contact detail to get fresh company data
+                this.openContactDetail(this.detail.id);
             }
         },
 
