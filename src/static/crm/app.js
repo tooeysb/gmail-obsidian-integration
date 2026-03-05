@@ -328,9 +328,11 @@ function crmApp() {
         // ==================== DETAIL PANEL ====================
         async openContactDetail(id) {
             this._savedScrollY = window.scrollY;
-            this._returnTo = this.currentView === 'admin'
-                ? { view: 'admin', adminTab: this.admin.selected, reportTab: this.reports.selected }
-                : null;
+            if (!this._returnTo) {
+                this._returnTo = this.currentView === 'admin'
+                    ? { view: 'admin', adminTab: this.admin.selected, reportTab: this.reports.selected }
+                    : null;
+            }
             this.detail = { show: true, type: 'contact', id, loading: true, data: null, enrichingTitle: false };
             this.emails = [];
             this.emailsPage = 1;
@@ -365,9 +367,11 @@ function crmApp() {
 
         async openCompanyDetail(id) {
             this._savedScrollY = window.scrollY;
-            this._returnTo = this.currentView === 'admin'
-                ? { view: 'admin', adminTab: this.admin.selected, reportTab: this.reports.selected }
-                : null;
+            if (!this._returnTo) {
+                this._returnTo = this.currentView === 'admin'
+                    ? { view: 'admin', adminTab: this.admin.selected, reportTab: this.reports.selected }
+                    : null;
+            }
             this.detail = { show: true, type: 'company', id, loading: true, data: null, recentNews: [], olderNews: [], newsLoading: false, newsTotal: 0, companyTab: 'overview', discoveredContacts: [], discoveredLoading: false, discoveredDomain: '', scanning: false, scanMessage: '', mergeMode: false, mergeSearch: '', mergeResults: [], merging: false, showInactive: false };
             this.editing = { field: null, value: '' };
             window.location.hash = 'companies/' + id;
