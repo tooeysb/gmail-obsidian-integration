@@ -114,6 +114,20 @@ def enrich_contact(
         )
         return False
 
+    # Verify company match — name alone isn't enough confidence
+    if contact.company_name and profile.company_name:
+        crm_norm = _normalize_company_name(contact.company_name)
+        li_norm = _normalize_company_name(profile.company_name)
+        if crm_norm and li_norm and crm_norm not in li_norm and li_norm not in crm_norm:
+            _flag_for_review(
+                crm,
+                contact,
+                f"Company mismatch: CRM has '{contact.company_name}' but LinkedIn shows "
+                f"'{profile.company_name}' — may be wrong person ({linkedin_url})",
+                dry_run,
+            )
+            return False
+
     if dry_run:
         logger.info(
             "[DRY RUN] Would update contact %s: title=%s, linkedin_url=%s",

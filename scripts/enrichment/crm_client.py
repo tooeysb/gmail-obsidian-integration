@@ -6,7 +6,7 @@ Uses httpx (sync) to call the production Heroku API with X-API-Key auth.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import httpx
 
@@ -26,6 +26,12 @@ class ContactToEnrich:
     linkedin_url: str | None
     email_count: int
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "ContactToEnrich":
+        """Create from API response dict, ignoring extra fields."""
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in known})
+
 
 class CRMClient:
     """Sync HTTP client for CRM API."""
@@ -41,7 +47,7 @@ class CRMClient:
         """Contacts with linkedin_url but no title."""
         resp = self._client.get("/crm/api/reports/needs-browser-enrich")
         resp.raise_for_status()
-        return [ContactToEnrich(**item) for item in resp.json()["items"]]
+        return [ContactToEnrich.from_dict(item) for item in resp.json()["items"]]
 
     def get_needs_linkedin_url(self) -> list[ContactToEnrich]:
         """Contacts without linkedin_url at all."""
@@ -50,14 +56,14 @@ class CRMClient:
         items = []
         for item in resp.json()["items"]:
             item.setdefault("linkedin_url", None)
-            items.append(ContactToEnrich(**item))
+            items.append(ContactToEnrich.from_dict(item))
         return items
 
     def get_needs_recheck(self) -> list[ContactToEnrich]:
         """Enriched contacts due for LinkedIn re-check (oldest first)."""
         resp = self._client.get("/crm/api/reports/needs-linkedin-recheck")
         resp.raise_for_status()
-        return [ContactToEnrich(**item) for item in resp.json()["items"]]
+        return [ContactToEnrich.from_dict(item) for item in resp.json()["items"]]
 
     def update_contact(self, contact_id: str, **fields) -> dict:
         """PATCH /crm/api/contacts/{id} with partial update."""
