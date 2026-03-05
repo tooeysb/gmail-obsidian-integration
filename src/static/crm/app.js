@@ -443,6 +443,23 @@ function crmApp() {
             }
         },
 
+        async saveCompanyField(field) {
+            const value = this.editing.value;
+            this.editing = { field: null, value: '' };
+            // Works for both contact detail (company nested) and company detail views
+            const companyId = this.detail.type === 'company' ? this.detail.id : this.detail.data?.contact?.company?.id;
+            if (!companyId) return;
+            const body = {};
+            body[field] = value || null;
+            const result = await this.apiFetch('companies/' + companyId, {
+                method: 'PATCH',
+                body: JSON.stringify(body),
+            });
+            if (result && this.detail.data?.company) {
+                this.detail.data.company[field] = value || null;
+            }
+        },
+
         // ==================== VIP TOGGLE ====================
         async toggleVip(contact) {
             const newVal = !contact.is_vip;

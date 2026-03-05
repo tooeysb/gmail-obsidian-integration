@@ -281,9 +281,14 @@ class TestSearchLinkedInTitle:
 # Tests: _best_company_name helper
 # ---------------------------------------------------------------------------
 class TestBestCompanyName:
-    def test_multi_word_name_returned_as_is(self):
+    def test_multi_word_name_no_alias(self):
         result = _best_company_name("McCarthy Holdings", None, None)
         assert result == "McCarthy Holdings"
+
+    def test_always_prefers_alias(self):
+        """Aliases are always preferred, even when primary name is multi-word."""
+        result = _best_company_name("McCarthy Holdings", ["McCarthy Building Companies"], None)
+        assert result == "McCarthy Building Companies"
 
     def test_single_word_prefers_alias(self):
         result = _best_company_name("Manhattan", ["Manhattan Construction"], None)
@@ -292,6 +297,11 @@ class TestBestCompanyName:
     def test_alias_strips_suffixes(self):
         result = _best_company_name("Manhattan", ["Manhattan Construction, Inc."], None)
         assert result == "Manhattan Construction"
+
+    def test_same_alias_skipped(self):
+        """Alias identical to primary name (case-insensitive) is skipped."""
+        result = _best_company_name("Manhattan", ["manhattan"], None)
+        assert result == "Manhattan"
 
     def test_falls_back_to_domain_derived_name(self):
         result = _best_company_name("Manhattan", None, "manhattanconstruction.com")

@@ -135,6 +135,10 @@ class Company(Base, UUIDMixin, TimestampMixin):
         comment="Override search term for Google News (e.g. 'DPR Construction' for 'DPR')",
     )
 
+    linkedin_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="Company LinkedIn page URL"
+    )
+
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="companies")
 

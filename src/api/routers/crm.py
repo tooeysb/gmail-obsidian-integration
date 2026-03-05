@@ -147,6 +147,7 @@ class CompanyUpdateRequest(BaseModel):
     account_tier: str | None = None
     industry: str | None = None
     news_search_override: str | None = None
+    linkedin_url: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +246,7 @@ def _serialize_company(company: Company, contact_count: int = 0) -> dict:
         "contact_count": contact_count,
         "source_data": company.source_data,
         "news_search_override": company.news_search_override,
+        "linkedin_url": company.linkedin_url,
         "created_at": serialize_dt(company.created_at),
         "updated_at": serialize_dt(company.updated_at),
     }
@@ -678,6 +680,15 @@ def enrich_contact_title(
         db.commit()
         _logger.info("Auto-enriched title for contact %s: %s", contact.id, title)
 
+    # Try to discover company LinkedIn URL if we don't have one yet
+    if contact.company and not contact.company.linkedin_url:
+        co_search = _best_company_name(company_name, company_aliases, company_domain)
+        company_li = _search_company_linkedin(co_search)
+        if company_li:
+            contact.company.linkedin_url = company_li
+            db.commit()
+            _logger.info("Discovered company LinkedIn for %s: %s", company_name, company_li)
+
     return {"title": title}
 
 
@@ -1067,32 +1078,73 @@ def _scrape_linkedin_title(linkedin_url: str, name: str | None) -> str | None:
         return None
 
 
+def _search_company_linkedin(company_name: str) -> str | None:
+    """Search DuckDuckGo for a company's LinkedIn page URL.
+
+    Returns the linkedin.com/company/... URL if found, else None.
+    """
+    if not company_name:
+        return None
+
+    query = f'"{company_name}" site:linkedin.com/company'
+    url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+    try:
+        resp = httpx.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; CRM-HTH/1.0)"},
+            timeout=6,
+            follow_redirects=True,
+        )
+        if resp.status_code != 200:
+            return None
+
+        soup = BeautifulSoup(resp.text, "lxml")
+        for result in soup.select(".result"):
+            link_el = result.select_one(".result__url")
+            if not link_el:
+                continue
+            link_text = link_el.get_text().strip()
+            if "linkedin.com/company/" not in link_text:
+                continue
+
+            # Extract the clean URL
+            # DuckDuckGo shows URLs like "https://www.linkedin.com/company/manhattan-construction"
+            if link_text.startswith("http"):
+                li_url = link_text
+            else:
+                li_url = "https://" + link_text
+            # Normalize: strip trailing slashes and query params
+            li_url = li_url.split("?")[0].rstrip("/")
+            _logger.info("Found company LinkedIn for %s: %s", company_name, li_url)
+            return li_url
+
+        return None
+    except Exception:
+        _logger.warning("Company LinkedIn search failed for %s", company_name, exc_info=True)
+        return None
+
+
 def _best_company_name(company_name: str, aliases: list[str] | None, domain: str | None) -> str:
     """Pick the most descriptive company name for search queries.
 
-    If the primary name is a single word (e.g. "Manhattan"), prefer an alias that
-    contains more words (e.g. "Manhattan Construction") or derive a name from the
-    domain (e.g. "manhattanconstruction.com" → "Manhattan Construction").
+    Always prefers aliases when available (they are curated by the user).
+    Falls back to domain-derived names for single-word company names.
     """
     co = company_name.split(" - ")[0].strip() if company_name else ""
     co = re.sub(r",?\s*(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?)$", "", co).strip()
 
-    # If primary name is already multi-word, it's probably descriptive enough
-    if len(co.split()) >= 2:
-        return co
-
-    # Try aliases for a longer, more descriptive name
+    # Always prefer aliases — they are explicitly curated and more accurate
     if aliases:
         for alias in aliases:
             clean_alias = alias.split(" - ")[0].strip()
             clean_alias = re.sub(r",?\s*(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?)$", "", clean_alias)
             clean_alias = clean_alias.strip()
-            if len(clean_alias.split()) >= 2:
+            if clean_alias and clean_alias.lower() != co.lower():
                 _logger.info("Using alias %r instead of %r for search", clean_alias, co)
                 return clean_alias
 
-    # Try deriving from domain (e.g. "manhattanconstruction.com" → "Manhattan Construction")
-    if domain:
+    # For single-word names, try deriving from domain
+    if len(co.split()) < 2 and domain:
         # Remove common TLD and split camelCase/concatenated words
         slug = domain.split(".")[0]
         # Insert spaces before uppercase letters (camelCase)
