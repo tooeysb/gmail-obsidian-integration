@@ -564,6 +564,13 @@
                                 <option value="Mid-Market">Mid-Market</option>
                                 <option value="SMB">SMB</option>
                             </select>
+                            <select x-model="companies.filters.enr"
+                                @change="companies.page = 1; loadCompanies()"
+                                class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <option value="">All Companies</option>
+                                <option value="only">ENR Only</option>
+                                <option value="hide">Hide ENR</option>
+                            </select>
                         </div>
                     </div>
                 </div>

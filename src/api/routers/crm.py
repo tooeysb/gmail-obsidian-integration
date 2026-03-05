@@ -841,6 +841,7 @@ def list_companies(
     sort_dir: str = Query("desc"),
     company_type: str | None = Query(None),
     account_tier: str | None = Query(None),
+    enr: str | None = Query(None),
     no_contact: bool = Query(False),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_sync_db),
@@ -907,6 +908,11 @@ def list_companies(
 
     if account_tier:
         query = query.filter(Company.account_tier == account_tier)
+
+    if enr == "only":
+        query = query.filter(Company.source_data["enr"]["rank_2024"].astext.isnot(None))
+    elif enr == "hide":
+        query = query.filter(Company.source_data["enr"]["rank_2024"].astext.is_(None))
 
     total = query.count()
 

@@ -35,7 +35,7 @@ function crmApp() {
             search: '',
             sortBy: 'arr',
             sortDir: 'desc',
-            filters: { company_type: '', account_tier: '' },
+            filters: { company_type: '', account_tier: '', enr: '' },
         },
 
         // No-Contact Companies
@@ -296,6 +296,7 @@ function crmApp() {
             if (this.companies.search) params.set('search', this.companies.search);
             if (this.companies.filters.company_type) params.set('company_type', this.companies.filters.company_type);
             if (this.companies.filters.account_tier) params.set('account_tier', this.companies.filters.account_tier);
+            if (this.companies.filters.enr) params.set('enr', this.companies.filters.enr);
 
             const data = await this.apiFetch('companies?' + params.toString());
             if (data) {
