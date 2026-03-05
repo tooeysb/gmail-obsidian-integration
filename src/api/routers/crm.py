@@ -542,29 +542,29 @@ def get_contact(
 
     # Auto-enrich title from email signature if missing
     if not contact.title:
-        sig_row = db.execute(
+        # Fetch several recent emails, pick longest body (most likely to have a signature)
+        sig_rows = db.execute(
             text(
                 """
-                SELECT sender_email, sender_name,
-                       COALESCE(body, summary) AS sig_text
+                SELECT sender_name, COALESCE(body, summary) AS sig_text
                 FROM emails
                 WHERE user_id = :uid
                   AND LOWER(sender_email) = :contact_email
-                  AND COALESCE(body, summary) IS NOT NULL
-                  AND COALESCE(body, summary) != ''
+                  AND LENGTH(COALESCE(body, summary)) > 100
                 ORDER BY date DESC
-                LIMIT 1
+                LIMIT 5
                 """
             ),
             {"uid": str(user.id), "contact_email": contact.email.lower()},
-        ).fetchone()
+        ).fetchall()
 
-        if sig_row and sig_row.sig_text:
+        if sig_rows:
+            best = max(sig_rows, key=lambda r: len(r.sig_text or ""))
             company_name = contact.company.name if contact.company else ""
             signatures = {
                 contact.email.lower(): (
-                    sig_row.sender_name or contact.name or "",
-                    sig_row.sig_text,
+                    best.sender_name or contact.name or "",
+                    best.sig_text,
                 )
             }
             enriched = _enrich_with_haiku(signatures, company_name)

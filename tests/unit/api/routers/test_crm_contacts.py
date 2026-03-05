@@ -118,12 +118,11 @@ class TestContactDetailAutoEnrich:
         contact.company = company_mock
         self._setup_detail_mocks(mock_db, contact)
 
-        # Mock db.execute for the raw SQL signature lookup
+        # Mock db.execute for the raw SQL signature lookup (now returns fetchall)
         sig_row = MagicMock()
-        sig_row.sender_email = "kasey@acme.com"
         sig_row.sender_name = "Kasey Bevans"
         sig_row.sig_text = "Thanks!\n\nKasey Bevans\nVP of Operations\nAcme Corp"
-        mock_db.execute.return_value.fetchone.return_value = sig_row
+        mock_db.execute.return_value.fetchall.return_value = [sig_row]
 
         mock_haiku.return_value = {
             "kasey@acme.com": {
@@ -162,8 +161,8 @@ class TestContactDetailAutoEnrich:
         contact.company_id = None
         self._setup_detail_mocks(mock_db, contact)
 
-        # No signature row found
-        mock_db.execute.return_value.fetchone.return_value = None
+        # No signature rows found
+        mock_db.execute.return_value.fetchall.return_value = []
 
         resp = test_client.get(f"/crm/api/contacts/{contact.id}")
         assert resp.status_code == 200
@@ -180,10 +179,9 @@ class TestContactDetailAutoEnrich:
         self._setup_detail_mocks(mock_db, contact)
 
         sig_row = MagicMock()
-        sig_row.sender_email = "kasey@acme.com"
         sig_row.sender_name = "Kasey Bevans"
         sig_row.sig_text = "Thanks!"
-        mock_db.execute.return_value.fetchone.return_value = sig_row
+        mock_db.execute.return_value.fetchall.return_value = [sig_row]
 
         mock_haiku.return_value = {
             "kasey@acme.com": {"name": "Kasey Bevans", "title": None, "linkedin_url": None}
