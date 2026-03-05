@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from src.api.routers.crm import _build_linkedin_url, _search_linkedin_title
+from src.api.routers.crm import _best_company_name, _build_linkedin_url, _search_linkedin_title
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +108,8 @@ class TestEnrichTitle:
         contact = _make_contact(title=None)
         company_mock = MagicMock()
         company_mock.name = "Acme Corp"
+        company_mock.aliases = None
+        company_mock.domain = None
         contact.company = company_mock
         self._setup_enrich_mocks(mock_db, contact)
 
@@ -118,7 +120,7 @@ class TestEnrichTitle:
         assert resp.status_code == 200
         assert resp.json()["title"] == "President"
 
-        mock_linkedin.assert_called_once_with("Kasey Bevans", "Acme Corp")
+        mock_linkedin.assert_called_once_with("Kasey Bevans", "Acme Corp", None, None)
         assert contact.title == "President"
         mock_db.commit.assert_called()
 
@@ -128,6 +130,8 @@ class TestEnrichTitle:
         contact = _make_contact(title="CEO")
         company_mock = MagicMock()
         company_mock.name = "Acme Corp"
+        company_mock.aliases = None
+        company_mock.domain = None
         contact.company = company_mock
         self._setup_enrich_mocks(mock_db, contact)
 
@@ -146,6 +150,8 @@ class TestEnrichTitle:
         contact = _make_contact(title=None)
         company_mock = MagicMock()
         company_mock.name = "Acme Corp"
+        company_mock.aliases = None
+        company_mock.domain = None
         contact.company = company_mock
         self._setup_enrich_mocks(mock_db, contact)
 
@@ -179,6 +185,8 @@ class TestEnrichTitle:
         contact = _make_contact(title=None)
         company_mock = MagicMock()
         company_mock.name = "Acme Corp"
+        company_mock.aliases = None
+        company_mock.domain = None
         contact.company = company_mock
         self._setup_enrich_mocks(mock_db, contact)
 
@@ -267,3 +275,32 @@ class TestSearchLinkedInTitle:
 
         result = _search_linkedin_title("Nobody Special", "Unknown Corp")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Tests: _best_company_name helper
+# ---------------------------------------------------------------------------
+class TestBestCompanyName:
+    def test_multi_word_name_returned_as_is(self):
+        result = _best_company_name("McCarthy Holdings", None, None)
+        assert result == "McCarthy Holdings"
+
+    def test_single_word_prefers_alias(self):
+        result = _best_company_name("Manhattan", ["Manhattan Construction"], None)
+        assert result == "Manhattan Construction"
+
+    def test_alias_strips_suffixes(self):
+        result = _best_company_name("Manhattan", ["Manhattan Construction, Inc."], None)
+        assert result == "Manhattan Construction"
+
+    def test_falls_back_to_domain_derived_name(self):
+        result = _best_company_name("Manhattan", None, "manhattanconstruction.com")
+        assert result == "Manhattan Construction"
+
+    def test_no_alias_no_domain_returns_cleaned_name(self):
+        result = _best_company_name("Manhattan - HQ", None, None)
+        assert result == "Manhattan"
+
+    def test_empty_aliases_skipped(self):
+        result = _best_company_name("Manhattan", [], None)
+        assert result == "Manhattan"

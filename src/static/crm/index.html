@@ -453,7 +453,10 @@
                                                 <div class="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-xs font-medium flex-shrink-0"
                                                     x-text="c.name ? c.name.charAt(0).toUpperCase() : '?'"></div>
                                                 <div class="ml-3 min-w-0">
-                                                    <div class="text-sm font-medium text-gray-900 truncate" x-text="c.name || '(unknown)'"></div>
+                                                    <div class="flex items-baseline gap-2 min-w-0">
+                                                        <span class="text-sm font-medium text-gray-900 truncate" x-text="c.name || '(unknown)'"></span>
+                                                        <span x-show="c.title" class="text-xs text-gray-400 truncate flex-shrink" x-text="c.title"></span>
+                                                    </div>
                                                     <div class="text-xs text-gray-500 truncate" x-text="c.email"></div>
                                                 </div>
                                             </div>
@@ -1122,9 +1125,19 @@
                                     </div>
                                     <p class="text-sm text-gray-500 mt-0.5" x-text="detail.data.contact.email"></p>
                                     <template x-if="detail.data.contact.company">
-                                        <button @click="openCompanyDetail(detail.data.contact.company.id)"
-                                            class="inline-flex items-center mt-1.5 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                                            x-text="detail.data.contact.company.name"></button>
+                                        <div class="mt-1.5 flex items-center gap-1">
+                                            <template x-if="editing.field !== 'company_name'">
+                                                <span @click="startEditing('company_name', detail.data.contact.company.name || '')"
+                                                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer transition-colors"
+                                                    x-text="detail.data.contact.company.name"></span>
+                                            </template>
+                                            <template x-if="editing.field === 'company_name'">
+                                                <input type="text" x-model="editing.value"
+                                                    @blur="saveCompanyName()" @keydown.enter="saveCompanyName()" @keydown.escape="cancelEditing()"
+                                                    x-ref="editInput"
+                                                    class="text-xs font-medium border border-primary-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary-500">
+                                            </template>
+                                        </div>
                                     </template>
                                 </div>
                             </div>

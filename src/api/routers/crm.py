@@ -141,6 +141,7 @@ class ContactUpdateRequest(BaseModel):
 
 
 class CompanyUpdateRequest(BaseModel):
+    name: str | None = None
     notes: str | None = None
     company_type: str | None = None
     account_tier: str | None = None
@@ -646,6 +647,8 @@ def enrich_contact_title(
     ).fetchall()
 
     company_name = contact.company.name if contact.company else ""
+    company_aliases = contact.company.aliases if contact.company else None
+    company_domain = contact.company.domain if contact.company else None
     title = None
 
     # Step 1: If we have a stored LinkedIn URL, scrape title from it directly
@@ -654,7 +657,7 @@ def enrich_contact_title(
 
     # Step 2: Try LinkedIn search (fast — ~2-5s)
     if not title:
-        title = _search_linkedin_title(contact.name, company_name)
+        title = _search_linkedin_title(contact.name, company_name, company_aliases, company_domain)
 
     # Step 3: Fall back to email signature enrichment via Haiku (slow — ~15-25s)
     if not title and sig_rows:
@@ -1064,7 +1067,56 @@ def _scrape_linkedin_title(linkedin_url: str, name: str | None) -> str | None:
         return None
 
 
-def _search_linkedin_title(name: str | None, company_name: str) -> str | None:
+def _best_company_name(company_name: str, aliases: list[str] | None, domain: str | None) -> str:
+    """Pick the most descriptive company name for search queries.
+
+    If the primary name is a single word (e.g. "Manhattan"), prefer an alias that
+    contains more words (e.g. "Manhattan Construction") or derive a name from the
+    domain (e.g. "manhattanconstruction.com" → "Manhattan Construction").
+    """
+    co = company_name.split(" - ")[0].strip() if company_name else ""
+    co = re.sub(r",?\s*(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?)$", "", co).strip()
+
+    # If primary name is already multi-word, it's probably descriptive enough
+    if len(co.split()) >= 2:
+        return co
+
+    # Try aliases for a longer, more descriptive name
+    if aliases:
+        for alias in aliases:
+            clean_alias = alias.split(" - ")[0].strip()
+            clean_alias = re.sub(r",?\s*(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?)$", "", clean_alias)
+            clean_alias = clean_alias.strip()
+            if len(clean_alias.split()) >= 2:
+                _logger.info("Using alias %r instead of %r for search", clean_alias, co)
+                return clean_alias
+
+    # Try deriving from domain (e.g. "manhattanconstruction.com" → "Manhattan Construction")
+    if domain:
+        # Remove common TLD and split camelCase/concatenated words
+        slug = domain.split(".")[0]
+        # Insert spaces before uppercase letters (camelCase)
+        spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", slug)
+        # If still one word, try splitting known company-name patterns
+        if " " not in spaced and len(spaced) > len(co) + 3:
+            # Try to find the primary name as prefix and split there
+            lower_slug = spaced.lower()
+            lower_co = co.lower()
+            if lower_slug.startswith(lower_co) and len(lower_slug) > len(lower_co):
+                remainder = spaced[len(co) :]
+                derived = co + " " + remainder.capitalize()
+                _logger.info("Derived company name %r from domain %r", derived, domain)
+                return derived
+
+    return co
+
+
+def _search_linkedin_title(
+    name: str | None,
+    company_name: str,
+    aliases: list[str] | None = None,
+    domain: str | None = None,
+) -> str | None:
     """Search DuckDuckGo for a person's LinkedIn profile and extract their job title.
 
     LinkedIn results typically have titles like:
@@ -1075,9 +1127,8 @@ def _search_linkedin_title(name: str | None, company_name: str) -> str | None:
         return None
 
     clean_name = name.split(" - ")[0].strip()
-    # Strip suffixes like "- HQ", ", Inc.", ", LLC" from company names for cleaner search
-    co = company_name.split(" - ")[0].strip() if company_name else ""
-    co = re.sub(r",?\s*(Inc\.?|LLC|Ltd\.?|Corp\.?|Co\.?)$", "", co).strip()
+    # Pick the best company name from primary name, aliases, and domain
+    co = _best_company_name(company_name, aliases, domain)
     # Short company name = first word only (e.g. "McCarthy" from "McCarthy Holdings")
     co_short = co.split()[0] if co else ""
 

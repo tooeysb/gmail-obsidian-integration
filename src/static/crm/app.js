@@ -427,6 +427,22 @@ function crmApp() {
             }
         },
 
+        async saveCompanyName() {
+            const value = this.editing.value;
+            this.editing = { field: null, value: '' };
+            const company = this.detail.data?.contact?.company;
+            if (!company?.id) return;
+            const result = await this.apiFetch('companies/' + company.id, {
+                method: 'PATCH',
+                body: JSON.stringify({ name: value || null }),
+            });
+            if (result) {
+                company.name = value;
+                // Update company name in the contacts list too
+                this.updateContactInList(this.detail.id, { company: { ...company, name: value } });
+            }
+        },
+
         // ==================== VIP TOGGLE ====================
         async toggleVip(contact) {
             const newVal = !contact.is_vip;
