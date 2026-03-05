@@ -111,19 +111,17 @@ class EmailParticipantBuilder:
         contact_lookup = {c["email"].lower().strip(): c["id"] for c in contacts if c.get("email")}
         logger.info("Batch-linking emails for %d contacts (single pass)", len(contact_lookup))
 
-        total_emails = self.db.execute(
-            select(func.count(Email.id)).where(Email.user_id == self.user_id)
-        ).scalar_one()
-
+        # Use keyset pagination (WHERE id > last_id) for constant-time batches
+        # on remote Supabase. OFFSET pagination degrades as offset grows.
         total_created = 0
-        offset = 0
+        processed = 0
+        last_id = UUID(int=0)  # Start from beginning
 
-        while offset < total_emails:
+        while True:
             stmt = (
                 select(Email.id, Email.sender_email, Email.recipient_emails)
-                .where(Email.user_id == self.user_id)
+                .where(Email.user_id == self.user_id, Email.id > last_id)
                 .order_by(Email.id)
-                .offset(offset)
                 .limit(batch_size)
             )
             rows = self.db.execute(stmt).all()
@@ -132,13 +130,13 @@ class EmailParticipantBuilder:
 
             batch_created = self._process_batch(rows, contact_lookup)
             total_created += batch_created
-            offset += batch_size
+            processed += len(rows)
+            last_id = rows[-1][0]  # email.id of last row
 
-            if offset % 50_000 == 0 or offset >= total_emails:
+            if processed % 50_000 < batch_size:
                 logger.info(
-                    "Batch link progress: %d/%d emails, %d participants created",
-                    min(offset, total_emails),
-                    total_emails,
+                    "Batch link progress: %d emails scanned, %d participants created",
+                    processed,
                     total_created,
                 )
 
@@ -146,7 +144,7 @@ class EmailParticipantBuilder:
             "Batch link complete: %d participants created for %d contacts from %d emails",
             total_created,
             len(contact_lookup),
-            total_emails,
+            processed,
         )
         return total_created
 
