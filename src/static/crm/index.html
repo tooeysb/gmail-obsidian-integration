@@ -891,6 +891,13 @@
                             <span class="ml-1.5 text-xs font-normal" :class="reports.selected === 'companiesWithoutPeople' ? 'text-primary-500' : 'text-gray-400'"
                                 x-text="'(' + (reports.companiesWithoutPeople || []).length + ')'"></span>
                         </button>
+                        <button @click="reports.selected = 'browserEnrich'"
+                            :class="reports.selected === 'browserEnrich' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                            class="whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm transition-colors">
+                            Browser Enrichment
+                            <span class="ml-1.5 text-xs font-normal" :class="reports.selected === 'browserEnrich' ? 'text-primary-500' : 'text-gray-400'"
+                                x-text="'(' + (reports.needsBrowserEnrich || []).length + ')'"></span>
+                        </button>
                     </nav>
                 </div>
 
@@ -1056,6 +1063,54 @@
                         </div>
                     </template>
                 </div>
+
+                <!-- ===== Report: Browser Enrichment ===== -->
+                <div x-show="!reports.loading && reports.selected === 'browserEnrich'">
+                    <p class="text-sm text-gray-500 mb-4">Contacts with a LinkedIn URL but no job title. Click "Open & Enrich" to view their LinkedIn profile and enter their title.</p>
+
+                    <template x-if="(reports.needsBrowserEnrich || []).length === 0">
+                        <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-12 text-center">
+                            <svg class="mx-auto h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p class="mt-2 text-sm font-medium text-gray-900">All contacts with LinkedIn URLs have been enriched.</p>
+                        </div>
+                    </template>
+
+                    <template x-if="(reports.needsBrowserEnrich || []).length > 0">
+                        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Company</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Emails</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="item in reports.needsBrowserEnrich" :key="item.id">
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-6 py-3">
+                                                <button @click="openContactDetail(item.id)" class="text-sm font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                                                    x-text="item.name || item.email"></button>
+                                            </td>
+                                            <td class="px-6 py-3 text-sm text-gray-500 hidden sm:table-cell" x-text="item.company_name || '-'"></td>
+                                            <td class="px-6 py-3 text-sm text-gray-500 hidden md:table-cell" x-text="item.email_count"></td>
+                                            <td class="px-6 py-3">
+                                                <button @click="window.open(item.linkedin_url, '_blank'); openContactDetail(item.id)"
+                                                    class="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+                                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                                                    Open & Enrich
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
             </div>
 
         </main>
@@ -1160,8 +1215,17 @@
                                             </p>
                                         </template>
                                         <template x-if="!detail.enrichingTitle && editing.field !== 'title'">
-                                            <p class="text-sm text-gray-900 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1 py-0.5"
-                                                x-text="detail.data.contact.title || 'Click to add'"></p>
+                                            <div>
+                                                <p class="text-sm text-gray-900 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1 py-0.5"
+                                                    x-text="detail.data.contact.title || 'Click to add'"></p>
+                                                <template x-if="!detail.data.contact.title && detail.data.contact.linkedin_url">
+                                                    <a :href="detail.data.contact.linkedin_url" target="_blank" @click.stop
+                                                        class="inline-flex items-center gap-1 mt-0.5 px-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline">
+                                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                                                        Open LinkedIn
+                                                    </a>
+                                                </template>
+                                            </div>
                                         </template>
                                         <template x-if="!detail.enrichingTitle && editing.field === 'title'">
                                             <input type="text" x-model="editing.value"

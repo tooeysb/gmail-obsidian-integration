@@ -1817,6 +1817,47 @@ def report_needs_linkedin_url(
 
 
 # ---------------------------------------------------------------------------
+# GET /reports/needs-browser-enrich
+# ---------------------------------------------------------------------------
+
+
+@router.get("/reports/needs-browser-enrich")
+def report_needs_browser_enrich(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_sync_db),
+):
+    """Contacts that have a LinkedIn URL but no title — ready for browser-based enrichment."""
+    uid = user.id
+
+    contacts = (
+        db.query(Contact)
+        .options(selectinload(Contact.company))
+        .filter(
+            Contact.user_id == uid,
+            Contact.title.is_(None),
+            Contact.linkedin_url.isnot(None),
+        )
+        .order_by(Contact.email_count.desc())
+        .limit(100)
+        .all()
+    )
+
+    results = [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "email": c.email,
+            "company_name": c.company.name if c.company else None,
+            "linkedin_url": c.linkedin_url,
+            "email_count": c.email_count,
+        }
+        for c in contacts
+    ]
+
+    return {"items": results, "total": len(results)}
+
+
+# ---------------------------------------------------------------------------
 # POST /companies/{company_id}/scan-emails
 # ---------------------------------------------------------------------------
 

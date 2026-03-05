@@ -61,6 +61,7 @@ function crmApp() {
             challengingNames: [],
             companiesWithoutPeople: [],
             needsLinkedIn: [],
+            needsBrowserEnrich: [],
         },
 
         // Detail panel
@@ -589,14 +590,16 @@ function crmApp() {
         // ==================== REPORTS ====================
         async loadReports() {
             this.reports.loading = true;
-            const [names, noPeople, needsLI] = await Promise.all([
+            const [names, noPeople, needsLI, browserEnrich] = await Promise.all([
                 this.apiFetch('reports/challenging-names'),
                 this.apiFetch('reports/companies-without-people'),
                 this.apiFetch('reports/needs-linkedin-url'),
+                this.apiFetch('reports/needs-browser-enrich'),
             ]);
             if (names) this.reports.challengingNames = names.items || [];
             if (noPeople) this.reports.companiesWithoutPeople = noPeople.items || [];
             if (needsLI) this.reports.needsLinkedIn = needsLI.items || [];
+            if (browserEnrich) this.reports.needsBrowserEnrich = browserEnrich.items || [];
             this.reports.loading = false;
         },
 
