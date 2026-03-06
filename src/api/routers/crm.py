@@ -648,6 +648,11 @@ def update_contact(
             raise HTTPException(status_code=400, detail=f"Field '{field}' is not updatable")
         setattr(contact, field, value)
 
+    # Auto-clear needs_review when user has resolved the contact
+    if contact.enrichment_status == "needs_review" and (contact.linkedin_url or contact.title):
+        contact.enrichment_status = "enriched"
+        contact.enrichment_notes = None
+
     db.commit()
     db.refresh(contact)
 
@@ -2003,9 +2008,10 @@ def report_needs_human_research(
             Contact.deleted_at.is_(None),
             Contact.is_active.is_(True),
             Contact.enrichment_status == "needs_review",
+            Contact.linkedin_url.is_(None),
+            Contact.title.is_(None),
         )
         .order_by(Contact.email_count.desc())
-        .limit(200)
         .all()
     )
 
