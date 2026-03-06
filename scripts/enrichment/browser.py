@@ -223,10 +223,10 @@ class LinkedInBrowser:
 
         candidates.extend(self._extract_company_slugs_from_page())
 
-        # Domain-based fallback if we have a domain and need more candidates
-        if domain and len(candidates) < 2:
+        # Domain-based search — always run when domain is available
+        # Critical for companies with tricky names (e.g., "Adolfson & Peterson" with a-p.com)
+        if domain:
             delay_between_clicks()
-            # Try each domain if comma-separated
             domains = [d.strip() for d in domain.split(",") if d.strip()]
             for d in domains[:2]:
                 query = f'"{d}" site:linkedin.com/company/'
@@ -239,7 +239,7 @@ class LinkedInBrowser:
                 for url in self._extract_company_slugs_from_page():
                     if url not in candidates:
                         candidates.append(url)
-                if len(candidates) >= 3:
+                if len(candidates) >= 5:
                     break
 
         if candidates:
@@ -249,7 +249,7 @@ class LinkedInBrowser:
         else:
             logger.warning("No LinkedIn company page found for: %s", company_name)
 
-        return candidates[:3]
+        return candidates[:5]
 
     def _extract_company_slugs_from_page(self) -> list[str]:
         """Extract unique linkedin.com/company/ URLs from current Google results page."""
