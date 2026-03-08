@@ -1702,12 +1702,12 @@
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     <template x-for="item in reports.linkedinReview" :key="item.id">
                                         <tr class="hover:bg-gray-50">
-                                            <td class="px-6 py-3">
-                                                <button @click="openCompanyDetail(item.id)" class="text-sm font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                                            <td class="px-6 py-3 text-left">
+                                                <button @click="openCompanyDetail(item.id)" class="text-sm font-medium text-primary-600 hover:text-primary-800 hover:underline text-left"
                                                     x-text="item.name"></button>
                                             </td>
-                                            <td class="px-6 py-3 text-sm text-gray-500" x-text="item.domain || '—'"></td>
-                                            <td class="px-6 py-3">
+                                            <td class="px-6 py-3 text-left text-sm text-gray-500" x-text="item.domain || '—'"></td>
+                                            <td class="px-6 py-3 text-left">
                                                 <template x-if="item.linkedin_url">
                                                     <a :href="item.linkedin_url" target="_blank" rel="noopener"
                                                         class="text-xs text-blue-600 hover:text-blue-800 hover:underline">
@@ -1715,7 +1715,7 @@
                                                     </a>
                                                 </template>
                                                 <template x-if="!item.linkedin_url">
-                                                    <span class="text-xs text-gray-400" x-text="item.linkedin_name || 'None'"></span>
+                                                    <span class="text-xs text-gray-400 text-left" x-text="item.linkedin_name || 'None'"></span>
                                                 </template>
                                             </td>
                                             <td class="px-6 py-3">
