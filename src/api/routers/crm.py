@@ -2225,6 +2225,50 @@ def report_needs_logo_verification(
 
 
 # ---------------------------------------------------------------------------
+# GET /reports/logo-review
+# ---------------------------------------------------------------------------
+
+
+@router.get("/reports/logo-review")
+def report_logo_review(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_sync_db),
+):
+    """Companies where logo verification failed or had issues — needs manual review."""
+    uid = user.id
+
+    companies = (
+        db.query(Company)
+        .filter(
+            Company.user_id == uid,
+            Company.deleted_at.is_(None),
+            Company.logo_verified_at.isnot(None),
+            or_(
+                Company.logo_verified.is_(False),
+                Company.logo_verified.is_(None),
+            ),
+        )
+        .order_by(Company.name.asc())
+        .all()
+    )
+
+    results = [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "domain": c.domain,
+            "linkedin_url": c.linkedin_url,
+            "logo_hash_distance": c.logo_hash_distance,
+            "logo_hash_website": c.logo_hash_website,
+            "logo_hash_linkedin": c.logo_hash_linkedin,
+        }
+        for c in companies
+    ]
+
+    return {"items": results, "total": len(results)}
+
+
+# ---------------------------------------------------------------------------
 # GET /reports/needs-company-linkedin
 # ---------------------------------------------------------------------------
 
