@@ -65,6 +65,13 @@ function crmApp() {
             editSubject: '',
             editBody: '',
             pipelineRunning: false,
+            tab: 'drafts',
+            news: [],
+            newsTotal: 0,
+            newsPage: 1,
+            newsTotalPages: 0,
+            newsLoading: false,
+            newsFilter: 'all',
         },
 
         // Reports
@@ -968,6 +975,33 @@ function crmApp() {
                 this.outreach.items = data.items || [];
                 this.outreach.total = data.total || 0;
                 this.outreach.totalPages = data.total_pages || 0;
+            }
+        },
+
+        async loadNewsFeed() {
+            this.outreach.newsLoading = true;
+            const params = new URLSearchParams({
+                page: this.outreach.newsPage,
+                page_size: '50',
+                sort_by: 'created_at',
+                sort_dir: 'desc',
+            });
+            if (this.outreach.newsFilter && this.outreach.newsFilter !== 'all') {
+                params.set('status', this.outreach.newsFilter);
+            }
+            const data = await this.apiFetch('outreach/news?' + params.toString());
+            if (data) {
+                this.outreach.news = data.items || [];
+                this.outreach.newsTotal = data.total || 0;
+                this.outreach.newsTotalPages = data.total_pages || 0;
+            }
+            this.outreach.newsLoading = false;
+        },
+
+        switchOutreachTab(tab) {
+            this.outreach.tab = tab;
+            if (tab === 'news' && this.outreach.news.length === 0) {
+                this.loadNewsFeed();
             }
         },
 

@@ -815,6 +815,39 @@
                             </div>
                         </div>
 
+                        <!-- Sub-Tab Bar -->
+                        <div class="flex items-center gap-1 mb-4 border-b border-gray-200">
+                            <button @click="switchOutreachTab('drafts')"
+                                class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors"
+                                :class="outreach.tab === 'drafts' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                                Drafts
+                            </button>
+                            <button @click="switchOutreachTab('news')"
+                                class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors"
+                                :class="outreach.tab === 'news' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                                News Feed
+                                <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                    :class="outreach.tab === 'news' ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'"
+                                    x-text="outreach.stats.news_today || 0"></span>
+                            </button>
+                            <div class="flex-1"></div>
+                            <button @click="triggerPipeline()"
+                                :disabled="outreach.pipelineRunning"
+                                class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-1">
+                                <svg x-show="outreach.pipelineRunning" class="spinner w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <svg x-show="!outreach.pipelineRunning" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                </svg>
+                                <span x-text="outreach.pipelineRunning ? 'Running...' : 'Run Pipeline'"></span>
+                            </button>
+                        </div>
+
+                        <!-- DRAFTS TAB -->
+                        <template x-if="outreach.tab === 'drafts'">
+                        <div>
                         <!-- Filter Bar -->
                         <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
                             <div class="flex items-center gap-2 flex-1">
@@ -830,18 +863,6 @@
                                 </select>
                                 <span class="text-sm text-gray-500" x-text="outreach.total + ' suggestions'"></span>
                             </div>
-                            <button @click="triggerPipeline()"
-                                :disabled="outreach.pipelineRunning"
-                                class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                                <svg x-show="outreach.pipelineRunning" class="spinner w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                </svg>
-                                <svg x-show="!outreach.pipelineRunning" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                                </svg>
-                                <span x-text="outreach.pipelineRunning ? 'Running...' : 'Run Pipeline'"></span>
-                            </button>
                         </div>
 
                         <!-- Suggestion Cards -->
@@ -943,7 +964,7 @@
                             </template>
                         </div>
 
-                        <!-- Pagination -->
+                        <!-- Drafts Pagination -->
                         <div x-show="outreach.totalPages > 1" class="flex items-center justify-between mt-4">
                             <div class="text-sm text-gray-500">
                                 Page <span x-text="outreach.page"></span> of <span x-text="outreach.totalPages"></span>
@@ -959,6 +980,100 @@
                                 </button>
                             </div>
                         </div>
+                        </div>
+                        </template>
+
+                        <!-- NEWS FEED TAB -->
+                        <template x-if="outreach.tab === 'news'">
+                        <div>
+                            <!-- News Filter Bar -->
+                            <div class="flex items-center gap-3 mb-4">
+                                <select x-model="outreach.newsFilter"
+                                    @change="outreach.newsPage = 1; loadNewsFeed()"
+                                    class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                    <option value="all">All Articles</option>
+                                    <option value="new">New</option>
+                                    <option value="analyzed">Analyzed</option>
+                                </select>
+                                <span class="text-sm text-gray-500" x-text="outreach.newsTotal + ' articles'"></span>
+                            </div>
+
+                            <!-- Loading -->
+                            <template x-if="outreach.newsLoading">
+                                <div class="flex items-center justify-center py-12">
+                                    <svg class="spinner w-6 h-6 text-primary-500" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                </div>
+                            </template>
+
+                            <!-- News List -->
+                            <template x-if="!outreach.newsLoading">
+                            <div class="space-y-2">
+                                <template x-for="n in outreach.news" :key="n.id">
+                                    <div class="bg-white rounded-lg border border-gray-200 px-4 py-3 hover:border-gray-300 transition-colors">
+                                        <div class="flex items-start gap-3">
+                                            <div class="min-w-0 flex-1">
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <a x-show="n.source_url" :href="n.source_url" target="_blank"
+                                                        class="text-sm font-medium text-primary-600 hover:text-primary-800 hover:underline" x-text="n.title"></a>
+                                                    <span x-show="!n.source_url" class="text-sm font-medium text-gray-900" x-text="n.title"></span>
+                                                </div>
+                                                <div class="flex items-center gap-2 mt-1">
+                                                    <span @click="showCompanyDetail(n.company_id)"
+                                                        class="text-xs font-medium text-primary-600 hover:text-primary-800 cursor-pointer"
+                                                        x-text="n.company_name || 'Unknown'"></span>
+                                                    <span class="text-[10px] text-gray-400">|</span>
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                                        :class="{'bg-blue-50 text-blue-700': n.source_type === 'google_news', 'bg-green-50 text-green-700': n.source_type === 'company_website', 'bg-gray-50 text-gray-600': !n.source_type || n.source_type === 'rss_feed'}"
+                                                        x-text="n.source_type === 'google_news' ? 'Google News' : n.source_type === 'company_website' ? 'Website' : n.source_type || 'News'"></span>
+                                                    <span class="text-[10px] text-gray-400">|</span>
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                                        :class="{'bg-yellow-50 text-yellow-700': n.status === 'new', 'bg-green-50 text-green-700': n.status === 'analyzed'}"
+                                                        x-text="n.status"></span>
+                                                    <span class="text-[10px] text-gray-400" x-text="n.created_at ? timeAgo(n.created_at) : ''"></span>
+                                                </div>
+                                                <template x-if="n.summary">
+                                                    <p class="text-xs text-gray-500 mt-1 line-clamp-2" x-text="n.summary"></p>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Empty State -->
+                                <template x-if="outreach.news.length === 0">
+                                    <div class="bg-white rounded-xl border border-gray-200 px-5 py-12 text-center">
+                                        <svg class="mx-auto w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
+                                        </svg>
+                                        <p class="mt-3 text-sm text-gray-500">No news articles found</p>
+                                        <p class="mt-1 text-xs text-gray-400">Run the pipeline to discover company news</p>
+                                    </div>
+                                </template>
+                            </div>
+                            </template>
+
+                            <!-- News Pagination -->
+                            <div x-show="outreach.newsTotalPages > 1" class="flex items-center justify-between mt-4">
+                                <div class="text-sm text-gray-500">
+                                    Page <span x-text="outreach.newsPage"></span> of <span x-text="outreach.newsTotalPages"></span>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button @click="outreach.newsPage--; loadNewsFeed()" :disabled="outreach.newsPage <= 1"
+                                        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                        Previous
+                                    </button>
+                                    <button @click="outreach.newsPage++; loadNewsFeed()" :disabled="outreach.newsPage >= outreach.newsTotalPages"
+                                        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        </template>
+
                     </div>
                 </template>
             </div>
