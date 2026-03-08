@@ -58,7 +58,7 @@ def hash_distance(hash1: str, hash2: str) -> int:
     """Compute hamming distance between two hex pHash strings."""
     h1 = imagehash.hex_to_hash(hash1)
     h2 = imagehash.hex_to_hash(hash2)
-    return h1 - h2
+    return int(h1 - h2)
 
 
 def extract_website_logo(page: Page, domain: str) -> LogoResult:
