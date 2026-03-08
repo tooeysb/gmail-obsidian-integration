@@ -2473,7 +2473,6 @@ def report_company_name_mismatches(
             Company.linkedin_name != Company.name,
         )
         .order_by(Company.name.asc())
-        .limit(200)
         .all()
     )
 
