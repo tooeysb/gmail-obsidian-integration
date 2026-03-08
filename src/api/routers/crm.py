@@ -1687,7 +1687,27 @@ def add_contact_to_company(
         contact_source=body.contact_source or "email",
     )
     db.add(contact)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Race condition or edge case — re-fetch existing
+        existing = (
+            db.query(Contact)
+            .filter(Contact.user_id == uid, Contact.email == email_lower)
+            .first()
+        )
+        if existing:
+            return {
+                "contact": {
+                    "id": str(existing.id),
+                    "email": existing.email,
+                    "name": existing.name,
+                    "company_id": str(existing.company_id) if existing.company_id else None,
+                },
+                "created": False,
+            }
+        raise HTTPException(status_code=409, detail="Contact with this email already exists")
     db.refresh(contact)
 
     # Link existing emails to this new contact via EmailParticipant

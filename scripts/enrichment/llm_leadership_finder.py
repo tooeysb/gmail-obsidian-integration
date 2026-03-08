@@ -74,7 +74,9 @@ Response format (JSON array only):
 
 def _generate_email_guesses(name: str, domain: str) -> list[str]:
     """Generate common email patterns from name + domain."""
-    parts = name.lower().split()
+    # Strip suffixes like Jr., Sr., III, IV, etc.
+    cleaned = re.sub(r",?\s+(jr\.?|sr\.?|ii+|iv|v|ph\.?d\.?|esq\.?|md)$", "", name, flags=re.I)
+    parts = cleaned.lower().split()
     if len(parts) < 2:
         return []
     first = re.sub(r"[^a-z]", "", parts[0])
