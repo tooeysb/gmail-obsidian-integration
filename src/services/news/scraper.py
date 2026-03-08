@@ -8,6 +8,7 @@ parses article metadata, and stores new items in the database.
 import hashlib
 import time
 import uuid
+from datetime import UTC
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -303,6 +304,15 @@ class NewsScraperService:
                     except (ValueError, OverflowError):
                         pass
 
+                # Skip articles older than 30 days — Google News RSS
+                # sometimes returns stale results despite the when=3d filter
+                if published_at:
+                    from datetime import datetime
+
+                    age_days = (datetime.now(UTC) - published_at).days
+                    if age_days > 30:
+                        continue
+
                 stmt = (
                     pg_insert(CompanyNewsItem)
                     .values(
@@ -382,6 +392,14 @@ class NewsScraperService:
                         published_at = dateutil_parser.parse(published)
                     except (ValueError, OverflowError):
                         pass
+
+                # Skip articles older than 30 days
+                if published_at:
+                    from datetime import datetime
+
+                    age_days = (datetime.now(UTC) - published_at).days
+                    if age_days > 30:
+                        continue
 
                 stmt = (
                     pg_insert(CompanyNewsItem)

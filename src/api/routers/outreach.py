@@ -2,7 +2,7 @@
 Outreach API routes for news intelligence and draft suggestions.
 """
 
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -133,11 +133,12 @@ def outreach_dashboard(
         .scalar()
     )
 
+    cutoff_24h = datetime.now(UTC) - timedelta(hours=24)
     news_today = (
         db.query(func.count(CompanyNewsItem.id))
         .filter(
             CompanyNewsItem.user_id == user_id,
-            func.date(CompanyNewsItem.created_at) == func.current_date(),
+            CompanyNewsItem.published_at >= cutoff_24h,
         )
         .scalar()
     )
@@ -174,6 +175,9 @@ def list_news_items(
     status: str | None = None,
     category: str | None = None,
     company_id: str | None = None,
+    published_within: str | None = Query(
+        None, description="Filter by published_at recency: '24h', '7d', '30d'"
+    ),
     sort_by: str = "created_at",
     sort_dir: str = "desc",
     user: User = Depends(get_current_user),
@@ -194,6 +198,13 @@ def list_news_items(
 
     if status:
         query = query.filter(CompanyNewsItem.status == status)
+
+    if published_within:
+        hours_map = {"24h": 24, "7d": 7 * 24, "30d": 30 * 24}
+        hours = hours_map.get(published_within)
+        if hours:
+            cutoff = datetime.now(UTC) - timedelta(hours=hours)
+            query = query.filter(CompanyNewsItem.published_at >= cutoff)
 
     # Sort
     col = getattr(CompanyNewsItem, sort_by)

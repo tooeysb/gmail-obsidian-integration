@@ -71,7 +71,7 @@ function crmApp() {
             newsPage: 1,
             newsTotalPages: 0,
             newsLoading: false,
-            newsFilter: 'all',
+            newsFilter: '24h',
         },
 
         // Reports
@@ -983,11 +983,12 @@ function crmApp() {
             const params = new URLSearchParams({
                 page: this.outreach.newsPage,
                 page_size: '50',
-                sort_by: 'created_at',
+                sort_by: 'published_at',
                 sort_dir: 'desc',
             });
-            if (this.outreach.newsFilter && this.outreach.newsFilter !== 'all') {
-                params.set('status', this.outreach.newsFilter);
+            const timeFilters = ['24h', '7d', '30d'];
+            if (timeFilters.includes(this.outreach.newsFilter)) {
+                params.set('published_within', this.outreach.newsFilter);
             }
             const data = await this.apiFetch('outreach/news?' + params.toString());
             if (data) {
