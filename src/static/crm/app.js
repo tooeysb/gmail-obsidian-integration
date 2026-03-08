@@ -568,6 +568,26 @@ function crmApp() {
             }
         },
 
+        async dismissNoLinkedIn(companyId, event) {
+            const btn = event?.currentTarget;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>';
+            }
+            const result = await this.apiFetch('companies/' + companyId, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ linkedin_name: '[no-linkedin]' }),
+            });
+            if (result && btn) {
+                btn.innerHTML = '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> Dismissed';
+                btn.classList.replace('bg-gray-600', 'bg-green-600');
+                setTimeout(() => {
+                    this.reports.missingLinkedIn = this.reports.missingLinkedIn.filter(c => c.id !== companyId);
+                }, 800);
+            }
+        },
+
         // ==================== CONTACT EMAILS ====================
         async loadContactEmails(id, reset = false) {
             if (reset) {

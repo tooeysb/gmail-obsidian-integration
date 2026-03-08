@@ -2326,6 +2326,10 @@ def report_missing_company_linkedin(
             Company.linkedin_url.is_(None),
             Company.domain.isnot(None),
             Company.domain != "",
+            or_(
+                Company.linkedin_name.is_(None),
+                ~Company.linkedin_name.like("[no-linkedin]%"),
+            ),
         )
         .order_by(Company.name.asc())
         .all()
