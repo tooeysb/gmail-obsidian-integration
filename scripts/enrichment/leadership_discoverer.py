@@ -71,14 +71,28 @@ LEADERSHIP_URL_PATTERNS = [
     "/about/leadership",
     "/about-us/leadership",
     "/leadership",
+    "/senior-leadership",
+    "/about/senior-leadership",
+    "/about/executive-leadership",
+    "/our-leadership",
     "/our-team",
     "/about/team",
     "/about-us/our-team",
     "/about/our-leadership",
+    "/about/our-team",
     "/about/executives",
     "/about/management",
+    "/about/management-team",
     "/people",
+    "/our-people",
+    "/about/our-people",
     "/team",
+    "/who-we-are",
+    "/who-we-are/leadership",
+    "/company/leadership",
+    "/about-us/our-leadership-team",
+    "/about/leadership-team",
+    "/why-us/leadership",
 ]
 
 # Name patterns to exclude (not real people)
@@ -956,6 +970,11 @@ def main():
     parser.add_argument(
         "--rescrape", action="store_true", help="Re-process companies already scraped"
     )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Retry GC/SC companies that were scraped but no leadership page found",
+    )
     parser.add_argument("--resume", action="store_true", help="Resume from saved state")
     args = parser.parse_args()
 
@@ -1016,15 +1035,18 @@ def main():
             scraper.start()
 
         # Fetch companies needing leadership discovery
-        companies = crm.get_needs_leadership()
-        logger.info("Companies needing leadership discovery: %d", len(companies))
-
-        if args.rescrape:
-            # Also include already-scraped companies
-            # get_needs_leadership only returns un-scraped ones, so we need all
-            logger.info("Rescrape mode: fetching all companies with domains")
-            # For rescrape, we'd need a different API call or fetch all companies
-            # For now, the standard queue is sufficient
+        if args.retry_failed:
+            companies = crm.get_needs_leadership_retry()
+            logger.info(
+                "Retry-failed mode: %d GC/SC companies to retry with expanded URL patterns",
+                len(companies),
+            )
+            # Clear leadership_scraped_at so process_company tries URL discovery again
+            for c in companies:
+                c["leadership_scraped_at"] = None
+        else:
+            companies = crm.get_needs_leadership()
+            logger.info("Companies needing leadership discovery: %d", len(companies))
 
         if args.limit:
             companies = companies[: args.limit]

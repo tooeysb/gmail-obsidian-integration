@@ -108,6 +108,12 @@ class CRMClient:
         resp.raise_for_status()
         return resp.json()["items"]
 
+    def get_needs_leadership_retry(self) -> list[dict]:
+        """GC/SC companies scraped but no leadership page found (for retry)."""
+        resp = self._client.get("/crm/api/reports/needs-leadership-retry")
+        resp.raise_for_status()
+        return resp.json()["items"]
+
     def get_needs_logo_verification(self) -> list[dict]:
         """Companies with linkedin_url and domain but no logo verification."""
         resp = self._client.get("/crm/api/reports/needs-logo-verification")

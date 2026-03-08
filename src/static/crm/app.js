@@ -1051,6 +1051,7 @@ function crmApp() {
                 'Prospect': 'bg-blue-100 text-blue-800',
                 'Partner': 'bg-purple-100 text-purple-800',
                 'Vendor': 'bg-orange-100 text-orange-800',
+                'Trade Group': 'bg-amber-100 text-amber-800',
             };
             return map[type] || 'bg-gray-100 text-gray-700';
         },

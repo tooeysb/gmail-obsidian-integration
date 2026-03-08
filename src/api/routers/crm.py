@@ -2211,7 +2211,11 @@ def report_needs_leadership(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_sync_db),
 ):
-    """Companies with a domain but no leadership page scraped yet."""
+    """Companies with a domain but no leadership page scraped yet.
+
+    Only returns GCs and Specialty Contractors — Owners and Trade Groups
+    are excluded because their leaders are not relevant contacts.
+    """
     uid = user.id
 
     companies = (
@@ -2222,6 +2226,7 @@ def report_needs_leadership(
             Company.domain.isnot(None),
             Company.domain != "",
             Company.leadership_scraped_at.is_(None),
+            Company.company_type.in_(["General Contractor", "Specialty Contractor"]),
         )
         .order_by(Company.name.asc())
         .limit(200)
@@ -2233,6 +2238,53 @@ def report_needs_leadership(
             "id": str(c.id),
             "name": c.name,
             "domain": c.domain,
+            "company_type": c.company_type,
+            "leadership_page_url": c.leadership_page_url,
+            "leadership_scraped_at": serialize_dt(c.leadership_scraped_at),
+        }
+        for c in companies
+    ]
+
+    return {"items": results, "total": len(results)}
+
+
+# ---------------------------------------------------------------------------
+# GET /reports/needs-leadership-retry
+# ---------------------------------------------------------------------------
+
+
+@router.get("/reports/needs-leadership-retry")
+def report_needs_leadership_retry(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_sync_db),
+):
+    """GC/SC companies that were scraped but no leadership page was found.
+
+    These should be retried with expanded URL patterns.
+    """
+    uid = user.id
+
+    companies = (
+        db.query(Company)
+        .filter(
+            Company.user_id == uid,
+            Company.deleted_at.is_(None),
+            Company.domain.isnot(None),
+            Company.domain != "",
+            Company.leadership_scraped_at.isnot(None),
+            Company.leadership_page_url.is_(None),
+            Company.company_type.in_(["General Contractor", "Specialty Contractor"]),
+        )
+        .order_by(Company.name.asc())
+        .all()
+    )
+
+    results = [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "domain": c.domain,
+            "company_type": c.company_type,
             "leadership_page_url": c.leadership_page_url,
             "leadership_scraped_at": serialize_dt(c.leadership_scraped_at),
         }
