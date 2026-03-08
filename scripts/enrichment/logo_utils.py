@@ -21,8 +21,11 @@ from src.core.logging import get_logger
 logger = get_logger(__name__)
 
 # pHash distance thresholds
-MATCH_THRESHOLD = 10  # distance <= 10 = match
-NO_MATCH_THRESHOLD = 25  # distance >= 25 = definite no-match
+# 0-10: identical or near-identical logos
+# 10-20: same logo with color/background differences (e.g., dark vs light mode)
+# 20+: likely different logos
+MATCH_THRESHOLD = 20  # distance <= 20 = match
+NO_MATCH_THRESHOLD = 30  # distance >= 30 = definite no-match
 
 # Minimum image dimensions to accept (avoid tiny favicons / tracking pixels)
 MIN_LOGO_SIZE = (32, 32)
