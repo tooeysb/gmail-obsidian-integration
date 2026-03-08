@@ -239,11 +239,11 @@ def process_company(
 
     # Clean domain (remove protocol, trailing slash)
     domain = re.sub(r"^https?://", "", domain).rstrip("/")
-    # If multiple domains (comma-separated), use first
-    if "," in domain:
-        domain = domain.split(",")[0].strip()
-    # Remove www. prefix for email generation
-    email_domain = re.sub(r"^www\.", "", domain)
+    # Parse all domains (comma-separated) for email generation
+    all_domains = [re.sub(r"^www\.", "", d.strip()).rstrip("/") for d in domain.split(",")]
+    email_domains = [re.sub(r"^https?://", "", d) for d in all_domains if d]
+    # Use first domain for display/search
+    domain = all_domains[0] if all_domains else domain
 
     logger.info("Processing: %s (%s)", company_name, domain)
 
@@ -273,8 +273,10 @@ def process_company(
         title = exec_data["title"]
         linkedin_url = exec_data.get("linkedin_url")
 
-        # Generate email
-        email_guesses = _generate_email_guesses(name, email_domain)
+        # Generate email guesses across all company domains
+        email_guesses = []
+        for ed in email_domains:
+            email_guesses.extend(_generate_email_guesses(name, ed))
         if not email_guesses:
             logger.warning("Could not generate email for %s", name)
             continue
