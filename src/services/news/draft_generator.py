@@ -1,10 +1,12 @@
 """
 Draft suggestion generator.
 
-Matches high-relevance news items to CRM contacts and generates
-personalized email drafts using the existing voice profile system.
+Matches high-relevance news items to CRM contacts mentioned by name
+in the article, and generates personalized email drafts using the
+existing voice profile system.
 """
 
+import re
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session, joinedload
@@ -55,34 +57,84 @@ class NewsDraftGeneratorService:
         contact_desc = contact.name or contact.email
         if contact.title:
             contact_desc += f", {contact.title}"
-        parts.append(f"This email is to {contact_desc} at {company_name}.")
+        parts.append(
+            f"This email is to {contact_desc} at {company_name} "
+            f"because they were mentioned in this article."
+        )
 
         return " ".join(parts)
 
-    def generate_for_news_item(
-        self, item: CompanyNewsItem, max_contacts: int = 3
-    ) -> list[DraftSuggestion]:
+    def _find_mentioned_contacts(self, item: CompanyNewsItem) -> list[tuple[Contact, str]]:
+        """Find contacts at this company whose name appears in the article text.
+
+        Returns list of (Contact, match_confidence) tuples where
+        match_confidence is 'full_name' or 'last_name'.
         """
-        Generate draft suggestions for contacts at the news item's company.
-        Prioritizes VIPs, then by email_count.
-        """
+        article_text = f"{item.title or ''} {item.summary or ''}".lower()
+        if not article_text.strip():
+            return []
+
+        # Company name words for false-positive filtering
+        company_name_words = set()
+        if item.company and item.company.name:
+            company_name_words = {w.lower() for w in item.company.name.split()}
+
         contacts = (
             self.db.query(Contact)
             .filter(
                 Contact.company_id == item.company_id,
                 Contact.user_id == item.user_id,
+                Contact.is_active.is_(True),
+                Contact.deleted_at.is_(None),
+                Contact.name.isnot(None),
             )
-            .order_by(Contact.is_vip.desc(), Contact.email_count.desc())
-            .limit(max_contacts)
             .all()
         )
 
-        if not contacts:
-            logger.debug("No contacts found for company %s", item.company_id)
+        mentioned = []
+        for contact in contacts:
+            name = contact.name.strip()
+            if not name:
+                continue
+
+            # Full name match (word boundaries)
+            pattern = r"\b" + re.escape(name.lower()) + r"\b"
+            if re.search(pattern, article_text):
+                mentioned.append((contact, "full_name"))
+                continue
+
+            # Last name fallback (>= 4 chars to avoid false positives)
+            parts = name.split()
+            if len(parts) >= 2:
+                last = parts[-1]
+                if len(last) >= 4:
+                    # Skip if last name is a word in the company name
+                    # (e.g., "Yates" in "Yates Construction")
+                    if last.lower() in company_name_words:
+                        continue
+                    pattern = r"\b" + re.escape(last.lower()) + r"\b"
+                    if re.search(pattern, article_text):
+                        mentioned.append((contact, "last_name"))
+
+        return mentioned
+
+    def generate_for_news_item(self, item: CompanyNewsItem) -> list[DraftSuggestion]:
+        """
+        Generate draft suggestions for contacts mentioned by name
+        in the news article's title or summary.
+        """
+        results = self._find_mentioned_contacts(item)
+
+        if not results:
+            logger.debug(
+                "No contacts mentioned in article '%s' for company %s",
+                item.title[:60],
+                item.company_id,
+            )
             return []
 
         suggestions = []
-        for contact in contacts:
+        for contact, confidence in results:
             # Check if draft already exists for this news+contact
             existing = (
                 self.db.query(DraftSuggestion)
@@ -109,6 +161,8 @@ class NewsDraftGeneratorService:
                     user_id=item.user_id,
                     news_item_id=item.id,
                     contact_id=contact.id,
+                    trigger_type="news_mention",
+                    match_confidence=confidence,
                     subject=result.subject,
                     body=result.body,
                     context_used=context,
@@ -121,7 +175,8 @@ class NewsDraftGeneratorService:
                 suggestions.append(suggestion)
 
                 logger.info(
-                    "Generated draft for %s re: %s",
+                    "Generated %s-confidence draft for %s (mentioned in '%s')",
+                    confidence,
                     contact.email,
                     item.title[:60],
                 )
@@ -138,12 +193,12 @@ class NewsDraftGeneratorService:
     def generate_all_pending(self, user_id: str) -> dict:
         """
         Generate drafts for all analyzed news items above the relevance threshold
-        that haven't been actioned yet.
+        that haven't been actioned yet. Only generates drafts for contacts
+        mentioned by name in the article.
 
         Returns stats: {items_processed, drafts_generated, errors}
         """
         threshold = settings.news_relevance_threshold
-        max_contacts = settings.news_max_drafts_per_item
 
         # Find analyzed items that haven't been actioned
         items = (
@@ -167,7 +222,7 @@ class NewsDraftGeneratorService:
 
         for item in relevant_items:
             try:
-                suggestions = self.generate_for_news_item(item, max_contacts=max_contacts)
+                suggestions = self.generate_for_news_item(item)
                 stats["items_processed"] += 1
                 stats["drafts_generated"] += len(suggestions)
             except Exception:

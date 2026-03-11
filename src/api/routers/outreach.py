@@ -14,6 +14,7 @@ from src.api.middleware.auth import get_current_user
 from src.core.database import get_sync_db
 from src.core.utils import serialize_dt
 from src.models.company_news import CompanyNewsItem
+from src.models.contact import Contact
 from src.models.draft_suggestion import DraftSuggestion
 from src.models.user import User
 
@@ -45,13 +46,15 @@ class NewsItemResponse(BaseModel):
 
 class DraftSuggestionResponse(BaseModel):
     id: str
-    news_item_id: str
+    news_item_id: str | None = None
     contact_id: str
     contact_name: str | None = None
     contact_email: str
     contact_title: str | None = None
     company_name: str | None = None
-    news_title: str
+    trigger_type: str = "news_mention"
+    match_confidence: str = "full_name"
+    news_title: str | None = None
     news_category: str | None = None
     news_url: str | None = None
     subject: str
@@ -66,6 +69,7 @@ class DraftUpdateRequest(BaseModel):
     subject: str | None = None
     body: str | None = None
     snoozed_until: str | None = None
+    match_confidence: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -95,15 +99,25 @@ def _serialize_suggestion(s: DraftSuggestion) -> dict:
     contact = s.contact
     analysis = news_item.analysis if news_item else {}
 
+    # For job change drafts, company comes from the contact; for news, from the article
+    if news_item and news_item.company:
+        company_name = news_item.company.name
+    elif contact and contact.company:
+        company_name = contact.company.name
+    else:
+        company_name = None
+
     return {
         "id": str(s.id),
-        "news_item_id": str(s.news_item_id),
+        "news_item_id": str(s.news_item_id) if s.news_item_id else None,
         "contact_id": str(s.contact_id),
         "contact_name": contact.name if contact else None,
         "contact_email": contact.email if contact else "",
         "contact_title": contact.title if contact else None,
-        "company_name": news_item.company.name if news_item and news_item.company else None,
-        "news_title": news_item.title if news_item else "",
+        "company_name": company_name,
+        "trigger_type": s.trigger_type or "news_mention",
+        "match_confidence": s.match_confidence or "full_name",
+        "news_title": news_item.title if news_item else None,
         "news_category": analysis.get("category") if analysis else None,
         "news_url": news_item.source_url if news_item else None,
         "subject": s.subject,
@@ -133,18 +147,32 @@ def outreach_dashboard(
         .scalar()
     )
 
+    # Only count articles that mention a contact (have linked draft suggestions)
+    actioned_ids = (
+        db.query(DraftSuggestion.news_item_id)
+        .filter(DraftSuggestion.user_id == user_id, DraftSuggestion.news_item_id.isnot(None))
+        .distinct()
+        .subquery()
+    )
+
     cutoff_24h = datetime.now(UTC) - timedelta(hours=24)
     news_today = (
         db.query(func.count(CompanyNewsItem.id))
         .filter(
             CompanyNewsItem.user_id == user_id,
             CompanyNewsItem.published_at >= cutoff_24h,
+            CompanyNewsItem.id.in_(db.query(actioned_ids.c.news_item_id)),
         )
         .scalar()
     )
 
     total_news = (
-        db.query(func.count(CompanyNewsItem.id)).filter(CompanyNewsItem.user_id == user_id).scalar()
+        db.query(func.count(CompanyNewsItem.id))
+        .filter(
+            CompanyNewsItem.user_id == user_id,
+            CompanyNewsItem.id.in_(db.query(actioned_ids.c.news_item_id)),
+        )
+        .scalar()
     )
 
     total_analyzed = (
@@ -159,12 +187,23 @@ def outreach_dashboard(
         .scalar()
     )
 
+    review_drafts = (
+        db.query(func.count(DraftSuggestion.id))
+        .filter(
+            DraftSuggestion.user_id == user_id,
+            DraftSuggestion.status == "pending",
+            DraftSuggestion.match_confidence == "last_name",
+        )
+        .scalar()
+    )
+
     return {
         "pending_drafts": pending_drafts or 0,
         "news_today": news_today or 0,
         "total_news": total_news or 0,
         "total_analyzed": total_analyzed or 0,
         "drafts_sent": drafts_sent or 0,
+        "review_drafts": review_drafts or 0,
     }
 
 
@@ -187,10 +226,21 @@ def list_news_items(
     if sort_by not in NEWS_SORTABLE_COLUMNS:
         raise HTTPException(400, f"Invalid sort column: {sort_by}")
 
+    # Only show articles that have at least one draft suggestion (contact mentioned)
+    has_draft = (
+        db.query(DraftSuggestion.news_item_id)
+        .filter(DraftSuggestion.news_item_id.isnot(None))
+        .distinct()
+        .subquery()
+    )
+
     query = (
         db.query(CompanyNewsItem)
         .options(joinedload(CompanyNewsItem.company))
-        .filter(CompanyNewsItem.user_id == user.id)
+        .filter(
+            CompanyNewsItem.user_id == user.id,
+            CompanyNewsItem.id.in_(db.query(has_draft.c.news_item_id)),
+        )
     )
 
     if company_id:
@@ -252,7 +302,7 @@ def list_suggestions(
         db.query(DraftSuggestion)
         .options(
             joinedload(DraftSuggestion.news_item).joinedload(CompanyNewsItem.company),
-            joinedload(DraftSuggestion.contact),
+            joinedload(DraftSuggestion.contact).joinedload(Contact.company),
         )
         .filter(DraftSuggestion.user_id == user.id)
     )
@@ -291,7 +341,7 @@ def get_suggestion(
         db.query(DraftSuggestion)
         .options(
             joinedload(DraftSuggestion.news_item).joinedload(CompanyNewsItem.company),
-            joinedload(DraftSuggestion.contact),
+            joinedload(DraftSuggestion.contact).joinedload(Contact.company),
         )
         .filter(DraftSuggestion.id == suggestion_id, DraftSuggestion.user_id == user.id)
         .first()
@@ -334,6 +384,11 @@ def update_suggestion(
         if not body.status:
             s.status = "edited"
 
+    if body.match_confidence is not None:
+        if body.match_confidence not in ("full_name", "last_name"):
+            raise HTTPException(400, f"Invalid match_confidence: {body.match_confidence}")
+        s.match_confidence = body.match_confidence
+
     if body.snoozed_until:
         from dateutil import parser as dateutil_parser
 
@@ -354,7 +409,7 @@ def regenerate_suggestion(
         db.query(DraftSuggestion)
         .options(
             joinedload(DraftSuggestion.news_item).joinedload(CompanyNewsItem.company),
-            joinedload(DraftSuggestion.contact),
+            joinedload(DraftSuggestion.contact).joinedload(Contact.company),
         )
         .filter(DraftSuggestion.id == suggestion_id, DraftSuggestion.user_id == user.id)
         .first()

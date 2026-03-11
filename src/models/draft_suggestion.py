@@ -1,11 +1,11 @@
 """
-Draft suggestion model for news-triggered email outreach.
+Draft suggestion model for outreach triggered by news mentions or job changes.
 """
 
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,14 +19,29 @@ if TYPE_CHECKING:
 
 class DraftSuggestion(Base, UUIDMixin, TimestampMixin):
     """
-    AI-generated email draft triggered by a company news event.
+    AI-generated email draft triggered by a news mention or job change.
 
-    Links a CompanyNewsItem to a Contact with a personalized email draft
+    Links an optional CompanyNewsItem to a Contact with a personalized email draft
     generated using the user's voice profile.
     """
 
     __tablename__ = "draft_suggestions"
-    __table_args__ = (UniqueConstraint("news_item_id", "contact_id", name="uq_draft_news_contact"),)
+    __table_args__ = (
+        Index(
+            "uq_draft_news_contact_v2",
+            "news_item_id",
+            "contact_id",
+            unique=True,
+            postgresql_where=text("news_item_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_draft_jobchange_contact",
+            "contact_id",
+            "trigger_type",
+            unique=True,
+            postgresql_where=text("trigger_type = 'job_change' AND status = 'pending'"),
+        ),
+    )
 
     # Foreign Keys
     user_id: Mapped[UUID] = mapped_column(
@@ -36,10 +51,10 @@ class DraftSuggestion(Base, UUIDMixin, TimestampMixin):
         index=True,
     )
 
-    news_item_id: Mapped[UUID] = mapped_column(
+    news_item_id: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("company_news_items.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -48,6 +63,20 @@ class DraftSuggestion(Base, UUIDMixin, TimestampMixin):
         ForeignKey("contacts.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+
+    trigger_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=text("'news_mention'"),
+        comment="Draft trigger: news_mention, job_change",
+    )
+
+    match_confidence: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=text("'full_name'"),
+        comment="Contact match quality: full_name, last_name",
     )
 
     # Draft content

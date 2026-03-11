@@ -76,6 +76,22 @@ def generate_draft_suggestions(self, user_id: str) -> dict:
         db.close()
 
 
+@celery_app.task(bind=True, name="generate_job_change_drafts")
+def generate_job_change_drafts(self, user_id: str) -> dict:
+    """Generate congratulatory drafts for contacts with detected job changes."""
+    db = SessionLocal()
+    try:
+        from src.services.news.job_change_drafter import JobChangeDraftService
+
+        service = JobChangeDraftService(db)
+        return service.generate_all_pending(user_id)
+    except Exception:
+        logger.exception("generate_job_change_drafts failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(bind=True, name="send_daily_digest")
 def send_daily_digest(self, user_id: str) -> dict:
     """Build and send the daily news digest email."""
@@ -162,6 +178,9 @@ def run_news_pipeline(self, user_id: str) -> dict:
     draft_result = generate_draft_suggestions(user_id)
     logger.info("Draft generation complete: %s", draft_result)
 
+    job_change_result = generate_job_change_drafts(user_id)
+    logger.info("Job change drafts: %s", job_change_result)
+
     # Send daily digest (non-blocking — failures don't break pipeline)
     try:
         digest_result = send_daily_digest(user_id)
@@ -174,5 +193,6 @@ def run_news_pipeline(self, user_id: str) -> dict:
         "scrape": scrape_result,
         "analysis": analyze_result,
         "drafts": draft_result,
+        "job_changes": job_change_result,
         "digest": digest_result,
     }

@@ -56,6 +56,8 @@ function crmApp() {
             loading: true,
             stats: {},
             items: [],
+            confirmedItems: [],
+            reviewItems: [],
             total: 0,
             page: 1,
             pageSize: 20,
@@ -965,6 +967,8 @@ function crmApp() {
                 this.outreach.items = suggestions.items || [];
                 this.outreach.total = suggestions.total || 0;
                 this.outreach.totalPages = suggestions.total_pages || 0;
+                this.outreach.confirmedItems = this.outreach.items.filter(s => s.match_confidence !== 'last_name');
+                this.outreach.reviewItems = this.outreach.items.filter(s => s.match_confidence === 'last_name');
             }
             this.outreach.loading = false;
         },
@@ -975,6 +979,8 @@ function crmApp() {
                 this.outreach.items = data.items || [];
                 this.outreach.total = data.total || 0;
                 this.outreach.totalPages = data.total_pages || 0;
+                this.outreach.confirmedItems = this.outreach.items.filter(s => s.match_confidence !== 'last_name');
+                this.outreach.reviewItems = this.outreach.items.filter(s => s.match_confidence === 'last_name');
             }
         },
 
@@ -1028,6 +1034,16 @@ function crmApp() {
             });
             this.loadSuggestions();
             // Refresh stats
+            const stats = await this.apiFetch('outreach/dashboard');
+            if (stats) this.outreach.stats = stats;
+        },
+
+        async approveSuggestionMatch(id) {
+            await this.apiFetch('outreach/suggestions/' + id, {
+                method: 'PATCH',
+                body: JSON.stringify({ match_confidence: 'full_name' }),
+            });
+            this.loadSuggestions();
             const stats = await this.apiFetch('outreach/dashboard');
             if (stats) this.outreach.stats = stats;
         },

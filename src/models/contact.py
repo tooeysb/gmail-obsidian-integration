@@ -195,6 +195,12 @@ class Contact(Base, UUIDMixin, TimestampMixin):
         comment="Previous company before reassignment after job change",
     )
 
+    job_change_draft_generated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When a job change outreach draft was auto-generated",
+    )
+
     # LinkedIn Monitoring
     monitoring_tier: Mapped[str | None] = mapped_column(
         String(1), nullable=True, index=True, comment="A/B/C monitoring tier"
