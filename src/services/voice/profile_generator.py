@@ -250,6 +250,10 @@ class VoiceProfileGenerator:
         sample_count: int,
     ) -> VoiceProfile:
         """Save or update the voice profile in the database."""
+        # Reconnect after long Claude API calls to avoid Supabase timeout
+        self.db.close()
+        self.db.begin()
+
         existing = (
             self.db.query(VoiceProfile)
             .filter(
