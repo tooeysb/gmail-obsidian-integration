@@ -78,6 +78,95 @@ class DraftUpdateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _build_relationship_context(
+    db: Session, user_id, suggestions: list[DraftSuggestion]
+) -> dict[str, dict]:
+    """Batch-query email relationship stats for a page of suggestions.
+
+    Uses Contact.email_count (pre-computed) for fast aggregation. Two queries:
+    1. Contact-level: email_count for each draft contact
+    2. Company-level: aggregate email volume + top contacts per company
+
+    Returns dict keyed by contact_id.
+    """
+    if not suggestions:
+        return {}
+
+    # Collect unique company IDs from this page
+    contact_info = {}  # contact_id -> {email, company_id, email_count}
+    company_ids = set()
+    for s in suggestions:
+        if not s.contact:
+            continue
+        cid = str(s.contact_id)
+        contact_info[cid] = {
+            "email": s.contact.email,
+            "company_id": s.contact.company_id,
+            "email_count": s.contact.email_count or 0,
+        }
+        if s.contact.company_id:
+            company_ids.add(s.contact.company_id)
+
+    if not contact_info:
+        return {}
+
+    # --- Company-level stats (single query, uses pre-computed email_count) ---
+    company_stats = {}
+    if company_ids:
+        rows = (
+            db.query(
+                Contact.company_id,
+                Contact.name,
+                Contact.email,
+                Contact.email_count,
+            )
+            .filter(
+                Contact.company_id.in_(list(company_ids)),
+                Contact.user_id == user_id,
+                Contact.email_count > 0,
+                Contact.deleted_at.is_(None),
+            )
+            .order_by(Contact.company_id, Contact.email_count.desc())
+            .all()
+        )
+
+        for comp_id, name, email, email_count in rows:
+            comp_key = str(comp_id)
+            if comp_key not in company_stats:
+                company_stats[comp_key] = {
+                    "total_emails": 0,
+                    "contact_count": 0,
+                    "top_contacts": [],
+                }
+            stats = company_stats[comp_key]
+            stats["total_emails"] += email_count or 0
+            stats["contact_count"] += 1
+            if len(stats["top_contacts"]) < 3:
+                stats["top_contacts"].append(
+                    {"name": name or email, "email_count": email_count or 0}
+                )
+
+    # --- Assemble per-suggestion context ---
+    result = {}
+    for s in suggestions:
+        cid = str(s.contact_id)
+        info = contact_info.get(cid)
+        if not info:
+            continue
+
+        comp_key = str(info["company_id"]) if info["company_id"] else ""
+        co = company_stats.get(comp_key, {})
+
+        result[cid] = {
+            "contact_email_count": info["email_count"],
+            "company_email_count": co.get("total_emails", 0),
+            "company_contact_count": co.get("contact_count", 0),
+            "company_top_contacts": co.get("top_contacts", []),
+        }
+
+    return result
+
+
 def _serialize_news_item(item: CompanyNewsItem, draft_count: int = 0) -> dict:
     return {
         "id": str(item.id),
@@ -95,7 +184,7 @@ def _serialize_news_item(item: CompanyNewsItem, draft_count: int = 0) -> dict:
     }
 
 
-def _serialize_suggestion(s: DraftSuggestion) -> dict:
+def _serialize_suggestion(s: DraftSuggestion, rel_ctx: dict | None = None) -> dict:
     news_item = s.news_item
     contact = s.contact
     analysis = news_item.analysis if news_item else {}
@@ -108,7 +197,7 @@ def _serialize_suggestion(s: DraftSuggestion) -> dict:
     else:
         company_name = None
 
-    return {
+    result = {
         "id": str(s.id),
         "news_item_id": str(s.news_item_id) if s.news_item_id else None,
         "contact_id": str(s.contact_id),
@@ -128,6 +217,11 @@ def _serialize_suggestion(s: DraftSuggestion) -> dict:
         "generated_at": serialize_dt(s.generated_at),
         "created_at": serialize_dt(s.created_at),
     }
+
+    if rel_ctx:
+        result["relationship"] = rel_ctx
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -335,8 +429,11 @@ def list_suggestions(
     )
     items = query.offset((page - 1) * page_size).limit(page_size).all()
 
+    # Batch-load relationship context for this page of suggestions
+    rel_context = _build_relationship_context(db, user.id, items)
+
     return {
-        "items": [_serialize_suggestion(s) for s in items],
+        "items": [_serialize_suggestion(s, rel_context.get(str(s.contact_id))) for s in items],
         "total": total or 0,
         "page": page,
         "page_size": page_size,

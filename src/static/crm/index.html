@@ -6,7 +6,7 @@
     <title>CRM</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-    <script src="/crm/static/app.js?v=20260311a"></script>
+    <script src="/crm/static/app.js?v=20260311b"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -922,6 +922,35 @@
                                         </template>
                                     </div>
 
+                                    <!-- Relationship Context -->
+                                    <template x-if="s.relationship">
+                                        <div class="mb-3 px-3 py-2 bg-blue-50 rounded-lg">
+                                            <div class="flex items-center gap-1.5 mb-1">
+                                                <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                </svg>
+                                                <span class="text-xs font-medium text-blue-700">Relationship</span>
+                                            </div>
+                                            <div class="text-xs text-blue-900 space-y-0.5">
+                                                <template x-if="s.relationship.contact_email_count > 0">
+                                                    <p x-text="s.relationship.contact_email_count + ' emails exchanged directly with ' + (s.contact_name || s.contact_email)"></p>
+                                                </template>
+                                                <template x-if="s.relationship.contact_email_count === 0">
+                                                    <p class="text-blue-600 italic">No direct email history with this contact</p>
+                                                </template>
+                                                <template x-if="s.relationship.company_email_count > 0">
+                                                    <p x-text="s.relationship.company_email_count + ' emails with ' + s.relationship.company_contact_count + ' contacts at ' + (s.company_name || 'this company')"></p>
+                                                </template>
+                                                <template x-if="s.relationship.company_top_contacts && s.relationship.company_top_contacts.length > 0">
+                                                    <p class="text-blue-600" x-text="'Top contacts: ' + s.relationship.company_top_contacts.map(c => c.name + ' (' + c.email_count + ')').join(', ')"></p>
+                                                </template>
+                                                <template x-if="s.relationship.company_email_count === 0">
+                                                    <p class="text-blue-600 italic">No email history with this account</p>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+
                                     <!-- Draft preview (editable) -->
                                     <template x-if="outreach.editingId !== s.id">
                                         <div>
@@ -1027,6 +1056,35 @@
                                                 <span x-show="s.news_published_at" class="text-[10px] text-gray-400 flex-shrink-0" x-text="s.news_published_at ? new Date(s.news_published_at).toLocaleDateString() : ''"></span>
                                             </div>
                                         </div>
+
+                                        <!-- Relationship Context -->
+                                        <template x-if="s.relationship">
+                                            <div class="mb-3 px-3 py-2 bg-blue-50 rounded-lg">
+                                                <div class="flex items-center gap-1.5 mb-1">
+                                                    <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                    </svg>
+                                                    <span class="text-xs font-medium text-blue-700">Relationship</span>
+                                                </div>
+                                                <div class="text-xs text-blue-900 space-y-0.5">
+                                                    <template x-if="s.relationship.contact_email_count > 0">
+                                                        <p x-text="s.relationship.contact_email_count + ' emails exchanged directly with ' + (s.contact_name || s.contact_email)"></p>
+                                                    </template>
+                                                    <template x-if="s.relationship.contact_email_count === 0">
+                                                        <p class="text-blue-600 italic">No direct email history with this contact</p>
+                                                    </template>
+                                                    <template x-if="s.relationship.company_email_count > 0">
+                                                        <p x-text="s.relationship.company_email_count + ' emails with ' + s.relationship.company_contact_count + ' contacts at ' + (s.company_name || 'this company')"></p>
+                                                    </template>
+                                                    <template x-if="s.relationship.company_top_contacts && s.relationship.company_top_contacts.length > 0">
+                                                        <p class="text-blue-600" x-text="'Top contacts: ' + s.relationship.company_top_contacts.map(c => c.name + ' (' + c.email_count + ')').join(', ')"></p>
+                                                    </template>
+                                                    <template x-if="s.relationship.company_email_count === 0">
+                                                        <p class="text-blue-600 italic">No email history with this account</p>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
 
                                         <!-- Draft preview (editable) -->
                                         <template x-if="outreach.editingId !== s.id">
